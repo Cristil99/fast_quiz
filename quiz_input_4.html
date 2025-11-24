@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>本地題庫批量輸入器（批次設定 + JSON 可編輯）</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            margin: 12px 16px;
+            font-size: 20px;
+        }
+
+        .container {
+            display: flex;
+            gap: 16px;
+            padding: 0 16px 16px;
+            box-sizing: border-box;
+        }
+
+        .left,
+        .right {
+            background: #fff;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        }
+
+        .left {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            display: block;
+            margin-top: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 4px;
+            padding: 6px 8px;
+            font-size: 13px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+
+        textarea {
+            resize: vertical;
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .row>div {
+            flex: 1;
+        }
+
+        .buttons {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        button {
+            padding: 6px 10px;
+            font-size: 13px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+        }
+
+        button.primary {
+            background: #007bff;
+            color: #fff;
+        }
+
+        button.secondary {
+            background: #6c757d;
+            color: #fff;
+        }
+
+        button.danger {
+            background: #dc3545;
+            color: #fff;
+        }
+
+        /* JSON 編輯區 */
+        #jsonPreview {
+            flex: 1;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+            font-size: 12px;
+            background: #111;
+            color: #eee;
+            padding: 8px;
+            border-radius: 4px;
+            border: none;
+            margin-top: 4px;
+            resize: none;
+            min-height: 240px;
+        }
+
+        .status {
+            font-size: 12px;
+            margin-top: 6px;
+            color: #555;
+        }
+
+        .hint {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #777;
+        }
+
+        .separator {
+            margin: 10px 0;
+            border: none;
+            border-top: 1px solid #ddd;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>本地題庫批量輸入器（批次設定 + JSON 編輯）</h1>
+
+    <div class="container">
+        <!-- ◀ 左側：批次設定 + 題目輸入 ------------------------------------------------------------ -->
+        <div class="left">
+
+            <!-- 批次共同 meta -->
+            <div class="row">
+                <div>
+                    <label for="batchYear">本批・年分 year</label>
+                    <input type="number" id="batchYear" placeholder="例如：109">
+                </div>
+                <div>
+                    <label for="batchSource">本批・來源 source</label>
+                    <input type="text" id="batchSource" placeholder="例：109年建築師考試">
+                </div>
+                <div>
+                    <label for="baseId">本批・第一題 ID（可留空）</label>
+                    <input type="number" id="baseId" placeholder="例：109001">
+                </div>
+            </div>
+
+            <div class="row">
+                <div>
+                    <label for="batchSubject">本批・科目 subject（自由輸入）</label>
+                    <input type="text" id="batchSubject" placeholder="例：建築法 / 構造 / 技術規則…">
+                </div>
+                <div>
+                    <label for="batchTopic">本批・Topic（可逗號分隔多個）</label>
+                    <input type="text" id="batchTopic" placeholder="例：結構體,內外裝修">
+                </div>
+                <div>
+                    <label for="batchSubtopic">本批・Subtopic</label>
+                    <input type="text" id="batchSubtopic">
+                </div>
+            </div>
+
+            <label for="batchTags">本批・Tags（逗號分隔）</label>
+            <input type="text" id="batchTags">
+
+            <!-- 題目 + 答案 -->
+            <label for="batchQuestions">題目區（多題，題與題之間空一行）</label>
+            <textarea id="batchQuestions" rows="10"></textarea>
+
+            <label for="batchAnswers">答案區（每行一個 A/B/C/D）</label>
+            <textarea id="batchAnswers" rows="5"></textarea>
+
+            <div class="buttons">
+                <button class="primary" onclick="batchParseAndAdd()">批量解析並加入題庫 →</button>
+                <button class="secondary" onclick="clearInputs()">清空本批輸入</button>
+            </div>
+
+            <div class="status" id="statusMsg"></div>
+
+        </div>
+
+        <!-- ▶ 右側：JSON 顯示 / 可編輯 / 套用 + 依題號批次設定 ---------------------------------------- -->
+        <div class="right">
+            <label for="jsonPreview">目前題庫（可直接編輯 JSON）</label>
+            <textarea id="jsonPreview"></textarea>
+
+            <div class="buttons">
+                <button class="secondary" onclick="commitJSON()">套用 JSON 修改</button>
+                <button class="primary" onclick="downloadJSON()">下載 JSON</button>
+                <button class="danger" onclick="clearBank()">清空題庫</button>
+            </div>
+
+            <hr class="separator">
+
+            <!-- 依題號批次設定 Topic / Tags -->
+            <label for="qnoBatchInput">依題號批次設定 Topic / Tags</label>
+            <div class="hint">題號列表（逗號分隔，可用區間）。例如：<br>1,3,24-25</div>
+            <input type="text" id="qnoBatchInput" placeholder="例如：1,3,24-25">
+
+            <label for="qnoBatchTopic">Topic（可逗號分隔多個）</label>
+            <input type="text" id="qnoBatchTopic" placeholder="例如：建築法規,結構體">
+
+            <label for="qnoBatchTags">Tags（逗號分隔）</label>
+            <input type="text" id="qnoBatchTags" placeholder="例如：營建法,建築法">
+
+            <div class="buttons">
+                <button class="secondary" onclick="applyTopicTagsByQno()">依題號套用 Topic/Tags</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let questionBank = [];
+
+        /* 工具：確保 topic / tags 格式正確 */
+        function normalizeQuestion(q) {
+            const nq = { ...q };
+
+            // topic 一律變成陣列
+            if (Array.isArray(nq.topic)) {
+                nq.topic = nq.topic
+                    .map(t => (typeof t === "string" ? t.trim() : ""))
+                    .filter(t => t.length > 0);
+            } else if (typeof nq.topic === "string" && nq.topic.trim().length > 0) {
+                nq.topic = [nq.topic.trim()];
+            } else {
+                nq.topic = [];
+            }
+
+            // tags 也確保是陣列
+            if (Array.isArray(nq.tags)) {
+                nq.tags = nq.tags
+                    .map(t => (typeof t === "string" ? t.trim() : ""))
+                    .filter(t => t.length > 0);
+            } else if (typeof nq.tags === "string" && nq.tags.trim().length > 0) {
+                nq.tags = [nq.tags.trim()];
+            } else {
+                nq.tags = [];
+            }
+
+            return nq;
+        }
+
+        /* 更新右側 JSON 區 */
+        function updatePreview() {
+            const ta = document.getElementById("jsonPreview");
+            ta.value = JSON.stringify({ questions: questionBank }, null, 2);
+        }
+
+        function setStatus(msg) {
+            document.getElementById("statusMsg").textContent = msg;
+        }
+
+        function clearInputs() {
+            document.getElementById("batchQuestions").value = "";
+            document.getElementById("batchAnswers").value = "";
+            setStatus("本批題目與答案已清空。");
+        }
+
+        function clearBank() {
+            if (!confirm("確定清空整個題庫？")) return;
+            questionBank = [];
+            updatePreview();
+            setStatus("題庫已清空。");
+        }
+
+        /* 取得本批設定 */
+        function getBatchMeta() {
+            const year = document.getElementById("batchYear").value.trim();
+            const source = document.getElementById("batchSource").value.trim();
+            const baseId = document.getElementById("baseId").value.trim();
+            const subject = document.getElementById("batchSubject").value.trim();
+            const topicRaw = document.getElementById("batchTopic").value.trim();
+            const subtopic = document.getElementById("batchSubtopic").value.trim();
+            const tags = document.getElementById("batchTags").value
+                .split(",")
+                .map(t => t.trim())
+                .filter(t => t.length > 0);
+
+            const topics = topicRaw
+                ? topicRaw.split(",").map(t => t.trim()).filter(t => t.length > 0)
+                : [];
+
+            return {
+                year: year ? Number(year) : null,
+                source,
+                baseId: baseId ? Number(baseId) : null,
+                subject,
+                topic: topics,   // ★ topic 改成陣列
+                subtopic,
+                tags
+            };
+        }
+
+        /* 解析單題 */
+        function parseOne(raw, ans, meta, index) {
+            let text = raw.trim();
+            if (!text) return { obj: null, error: "空白題目" };
+
+            const normalized = text.replace(/\s+/g, " ");
+
+            const parts = normalized.split(/|||/);
+            if (parts.length < 5) return { obj: null, error: "缺少四個選項符號" };
+
+            let stem = parts[0].trim();
+            let year = meta.year;
+            let qno = null;
+
+            // 自動抓三位數年份（如果批次沒指定）
+            if (!year) {
+                const mYear = stem.match(/^(\d{3})\b/);
+                if (mYear) {
+                    year = Number(mYear[1]);
+                    stem = stem.replace(/^(\d{3})\s*/, "");
+                }
+            }
+
+            // 抓題號（例如「1 下列…」）
+            const mQno = stem.match(/^(\d+)\b/);
+            if (mQno) {
+                qno = Number(mQno[1]);
+                stem = stem.replace(/^\d+\s*/, "");
+            }
+
+            const A = parts[1].trim();
+            const B = parts[2].trim();
+            const C = parts[3].trim();
+            const D = parts[4].trim();
+
+            if (!A || !B || !C || !D) return { obj: null, error: "A~D 有空白" };
+
+            let id = null;
+            if (meta.baseId != null) id = meta.baseId + index;
+
+            const baseTopic = Array.isArray(meta.topic)
+                ? meta.topic.slice()
+                : (typeof meta.topic === "string" && meta.topic.trim()
+                    ? [meta.topic.trim()]
+                    : []);
+
+            const baseTags = Array.isArray(meta.tags) ? meta.tags.slice() : [];
+
+            const qObj = {
+                id,
+                qno, // 題號（之後可用來批次設定 Topic/Tags）
+                question: stem,
+                options: { A, B, C, D },
+                answer: ans,
+                explanation: "",
+                subject: meta.subject || "",
+                topic: baseTopic,
+                subtopic: meta.subtopic || "",
+                source: meta.source || "",
+                year,
+                tags: baseTags
+            };
+
+            return {
+                obj: normalizeQuestion(qObj),
+                error: null
+            };
+        }
+
+        /* 批量解析 ＋ 插入題庫 */
+        function batchParseAndAdd() {
+            const qs = document.getElementById("batchQuestions").value.trim();
+            const as = document.getElementById("batchAnswers").value.trim();
+
+            if (!qs || !as) {
+                setStatus("題目區或答案區為空");
+                return;
+            }
+
+            const meta = getBatchMeta();
+            const qBlocks = qs.split(/\n\s*\n+/).map(t => t.trim()).filter(t => t);
+            const aLines = as.split(/\n+/).map(t => t.trim()).filter(t => t);
+
+            if (qBlocks.length !== aLines.length) {
+                setStatus(`題目(${qBlocks.length}) vs 答案(${aLines.length}) 不一致`);
+                return;
+            }
+
+            let success = 0;
+            let failed = [];
+
+            for (let i = 0; i < qBlocks.length; i++) {
+                const ans = (aLines[i].match(/[A-D]/i) || [""])[0].toUpperCase();
+                if (!ans) { failed.push(i + 1); continue; }
+
+                const { obj, error } = parseOne(qBlocks[i], ans, meta, i);
+                if (error || !obj) { failed.push(i + 1); continue; }
+
+                /* ★★★ 新題目插到最前面 ★★★ */
+                questionBank.unshift(obj);
+
+                success++;
+            }
+
+            updatePreview();
+
+            if (failed.length === 0)
+                setStatus(`成功加入 ${success} 題`);
+            else
+                setStatus(`加入 ${success} 題；失敗：${failed.join(", ")}`);
+        }
+
+        /* 套用右側 JSON 修改 */
+        function commitJSON() {
+            const ta = document.getElementById("jsonPreview");
+            try {
+                const obj = JSON.parse(ta.value.trim());
+                if (!obj.questions || !Array.isArray(obj.questions)) {
+                    setStatus("JSON 應為 {\"questions\": [...]} 格式");
+                    return;
+                }
+                // 讀入時順便把 topic/tags 正規化
+                questionBank = obj.questions.map(q => normalizeQuestion(q));
+                updatePreview();
+                setStatus("已套用 JSON 修改（並正規化 topic/tags）");
+            } catch (e) {
+                setStatus("JSON 格式錯誤：" + e.message);
+            }
+        }
+
+        /* 下載 JSON */
+        function downloadJSON() {
+            const blob = new Blob(
+                [JSON.stringify({ questions: questionBank }, null, 2)],
+                { type: "application/json" }
+            );
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "question_bank.json";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        /* 將 "1,3,24-25" 解析成 [1,3,24,25] */
+        function parseQnoList(str) {
+            const tokens = str.split(",")
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+
+            const result = [];
+
+            tokens.forEach(tok => {
+                const mRange = tok.match(/^(\d+)\s*-\s*(\d+)$/);
+                if (mRange) {
+                    let start = Number(mRange[1]);
+                    let end = Number(mRange[2]);
+                    if (!Number.isNaN(start) && !Number.isNaN(end)) {
+                        if (start > end) {
+                            const tmp = start;
+                            start = end;
+                            end = tmp;
+                        }
+                        for (let n = start; n <= end; n++) {
+                            result.push(n);
+                        }
+                    }
+                } else {
+                    const n = Number(tok);
+                    if (!Number.isNaN(n)) {
+                        result.push(n);
+                    }
+                }
+            });
+
+            return result;
+        }
+
+        /* 依題號批次套用 Topic / Tags */
+        function applyTopicTagsByQno() {
+            const rawQnos = document.getElementById("qnoBatchInput").value.trim();
+            const topicStr = document.getElementById("qnoBatchTopic").value.trim();
+            const tagStr = document.getElementById("qnoBatchTags").value.trim();
+
+            if (!rawQnos) {
+                setStatus("請輸入題號列表（例如：1,3,24-25）");
+                return;
+            }
+
+            const qnos = parseQnoList(rawQnos);
+            if (qnos.length === 0) {
+                setStatus("題號格式錯誤，請確認輸入內容。");
+                return;
+            }
+
+            const topicsToApply = topicStr
+                ? topicStr.split(",").map(t => t.trim()).filter(t => t.length > 0)
+                : [];
+
+            const tagsToApply = tagStr
+                ? tagStr.split(",").map(t => t.trim()).filter(t => t.length > 0)
+                : [];
+
+            if (topicsToApply.length === 0 && tagsToApply.length === 0) {
+                setStatus("請至少填入 Topic 或 Tags 之一。");
+                return;
+            }
+
+            const qnoSet = new Set(qnos);
+            let count = 0;
+
+            questionBank = questionBank.map(q => {
+                if (!q || typeof q.qno !== "number" || !qnoSet.has(q.qno)) {
+                    return q;
+                }
+
+                const nq = normalizeQuestion(q);
+
+                if (topicsToApply.length > 0) {
+                    const mergedTopics = [...nq.topic, ...topicsToApply];
+                    nq.topic = Array.from(new Set(
+                        mergedTopics.map(t => (typeof t === "string" ? t.trim() : ""))
+                            .filter(t => t.length > 0)
+                    ));
+                }
+
+                if (tagsToApply.length > 0) {
+                    const mergedTags = [...nq.tags, ...tagsToApply];
+                    nq.tags = Array.from(new Set(
+                        mergedTags.map(t => (typeof t === "string" ? t.trim() : ""))
+                            .filter(t => t.length > 0)
+                    ));
+                }
+
+                count++;
+                return nq;
+            });
+
+            updatePreview();
+            setStatus(`已對 ${count} 題套用 Topic/Tags（題號：${qnos.join(", ")}）`);
+        }
+
+        /* 初始化 */
+        updatePreview();
+    </script>
+
+</body>
+
+</html>
+
