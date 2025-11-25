@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>題庫輸入器（產生 JSON）</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            margin-top: 8px;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+
+        textarea {
+            min-height: 60px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .col-2 {
+            flex: 1 1 48%;
+        }
+
+        .col-4 {
+            flex: 1 1 23%;
+        }
+
+        button {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 8px;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+            color: #fff;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: #fff;
+        }
+
+        .small {
+            font-size: 12px;
+            color: #666;
+        }
+
+        pre,
+        .json-output {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: #fafafa;
+            font-size: 13px;
+            font-family: "Consolas", "Courier New", monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        ul.question-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
+        ul.question-list li {
+            padding: 4px 0;
+            border-bottom: 1px dashed #ddd;
+            font-size: 13px;
+        }
+
+        ul.question-list li span.tag {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: #eee;
+            margin-left: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>題庫輸入器（本地產生 JSON）</h1>
+        <p class="small">說明：在下方輸入一題，按「加入一題」，右邊會累積題目，下面自動產生 <code>{"questions":[...]}</code> JSON，可以複製貼回題庫檔。</p>
+
+        <!-- 輸入表單 -->
+        <div class="card">
+            <h2 style="font-size:18px;margin-top:0;">輸入單題資料</h2>
+            <form id="questionForm">
+                <div class="row">
+                    <div class="col-2">
+                        <label for="id">題目 ID（可空白，自動用累計）</label>
+                        <input type="number" id="id" min="1" placeholder="例如：1">
+                    </div>
+                    <div class="col-2">
+                        <label for="category">類科 category（必填）</label>
+                        <input type="text" id="category" placeholder="例如：營建法與實務 / 建築環境控制">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-2">
+                        <label for="subject">科目 subject（必填）</label>
+                        <input type="text" id="subject" placeholder="例如：建築法 / 建築音環境">
+                    </div>
+                    <div class="col-2">
+                        <label for="source">來源 source</label>
+                        <input type="text" id="source" placeholder="例如：113年建築師考試">
+                    </div>
+                </div>
+
+                <label for="question">題目內容 question（必填）</label>
+                <textarea id="question" placeholder="在這裡輸入題幹文字..."></textarea>
+
+                <div class="row">
+                    <div class="col-4">
+                        <label for="optA">選項 A</label>
+                        <input type="text" id="optA" placeholder="選項 A">
+                    </div>
+                    <div class="col-4">
+                        <label for="optB">選項 B</label>
+                        <input type="text" id="optB" placeholder="選項 B">
+                    </div>
+                    <div class="col-4">
+                        <label for="optC">選項 C</label>
+                        <input type="text" id="optC" placeholder="選項 C">
+                    </div>
+                    <div class="col-4">
+                        <label for="optD">選項 D</label>
+                        <input type="text" id="optD" placeholder="選項 D">
+                    </div>
+                </div>
+
+                <label for="answer">正確答案（A / B / C / D）</label>
+                <select id="answer">
+                    <option value="">請選擇</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                </select>
+
+                <label for="explanation">解析 explanation（可略）</label>
+                <textarea id="explanation" placeholder="可填入條文出處、簡短說明等"></textarea>
+
+                <div class="row">
+                    <div class="col-2">
+                        <label for="topic">topic（章節，可略）</label>
+                        <input type="text" id="topic" placeholder="">
+                    </div>
+                    <div class="col-2">
+                        <label for="subtopic">subtopic（小節，可略）</label>
+                        <input type="text" id="subtopic" placeholder="">
+                    </div>
+                </div>
+
+                <label for="tags">tags（以「;」或「、，,」分隔）</label>
+                <input type="text" id="tags" placeholder="例如：建築法; 比例尺; 圖說規定">
+
+                <div style="margin-top:12px;">
+                    <button type="submit" class="btn-primary">加入一題</button>
+                    <button type="button" id="clearFormBtn" class="btn-secondary">清空表單</button>
+                </div>
+                <p class="small">⚠ 注意：這個工具完全在瀏覽器中運作，不會自動儲存。關掉頁面前記得把 JSON 複製出來。</p>
+            </form>
+        </div>
+
+        <!-- 右側：目前已加入的題目清單 -->
+        <div class="card">
+            <h2 style="font-size:18px;margin-top:0;">目前已加入的題目</h2>
+            <p class="small">簡要列表（顯示 id / 類科 / 科目 / 題目前幾個字）。</p>
+            <ul id="questionList" class="question-list"></ul>
+            <button type="button" id="clearAllBtn" class="btn-danger">清空所有題目</button>
+        </div>
+
+        <!-- 下方：JSON 輸出 -->
+        <div class="card">
+            <h2 style="font-size:18px;margin-top:0;">輸出的 JSON（可直接複製）</h2>
+            <p class="small">格式為：<code>{"questions":[...你的題目物件...]}</code>，可整段複製貼到 question_3.json 等題庫檔。</p>
+            <textarea id="jsonOutput" class="json-output" readonly rows="12"></textarea>
+            <div style="margin-top:8px;">
+                <button type="button" id="copyJsonBtn" class="btn-secondary">複製 JSON 到剪貼簿</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById("questionForm");
+        const questionListEl = document.getElementById("questionList");
+        const jsonOutputEl = document.getElementById("jsonOutput");
+        const clearFormBtn = document.getElementById("clearFormBtn");
+        const clearAllBtn = document.getElementById("clearAllBtn");
+        const copyJsonBtn = document.getElementById("copyJsonBtn");
+
+        // 暫存目前輸入的所有題目
+        let questions = [];
+
+        function renderList() {
+            questionListEl.innerHTML = "";
+            if (questions.length === 0) {
+                questionListEl.innerHTML = "<li class='small'>目前尚未加入任何題目。</li>";
+                return;
+            }
+            questions.forEach(q => {
+                const li = document.createElement("li");
+                const text = `${q.id}. [${q.category || "無類科"} / ${q.subject || "無科目"}] ${q.question.slice(0, 30)}${q.question.length > 30 ? "..." : ""}`;
+                li.textContent = text;
+                questionListEl.appendChild(li);
+            });
+        }
+
+        function renderJson() {
+            const data = { questions };
+            jsonOutputEl.value = JSON.stringify(data, null, 4);
+        }
+
+        function clearForm() {
+            form.reset();
+            // 有些瀏覽器不會 reset select 的第一個 option，要手動處理
+            document.getElementById("answer").value = "";
+        }
+
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            const idInput = document.getElementById("id").value.trim();
+            const question = document.getElementById("question").value.trim();
+            const optA = document.getElementById("optA").value.trim();
+            const optB = document.getElementById("optB").value.trim();
+            const optC = document.getElementById("optC").value.trim();
+            const optD = document.getElementById("optD").value.trim();
+            const answer = document.getElementById("answer").value.trim();
+            const explanation = document.getElementById("explanation").value.trim();
+            const category = document.getElementById("category").value.trim();
+            const subject = document.getElementById("subject").value.trim();
+            const topic = document.getElementById("topic").value.trim();
+            const subtopic = document.getElementById("subtopic").value.trim();
+            const source = document.getElementById("source").value.trim();
+            const tagsRaw = document.getElementById("tags").value.trim();
+
+            // 簡單驗證
+            if (!question) {
+                alert("題目內容（question）不可空白！");
+                return;
+            }
+            if (!optA || !optB || !optC || !optD) {
+                alert("四個選項 A/B/C/D 都必須填寫。");
+                return;
+            }
+            if (!answer || !["A", "B", "C", "D"].includes(answer)) {
+                alert("請選擇正確的答案（A/B/C/D）。");
+                return;
+            }
+            if (!category) {
+                alert("請填寫類科（category）。");
+                return;
+            }
+            if (!subject) {
+                alert("請填寫科目（subject）。");
+                return;
+            }
+
+            // 處理 tags：以 ; 、 ， , 分隔
+            let tags = [];
+            if (tagsRaw) {
+                tags = tagsRaw.split(/[;,，、]/).map(t => t.trim()).filter(t => t.length > 0);
+            }
+
+            const id = idInput ? Number(idInput) : (questions.length + 1);
+
+            const qObj = {
+                id: id,
+                question: question,
+                options: {
+                    A: optA,
+                    B: optB,
+                    C: optC,
+                    D: optD
+                },
+                answer: answer,
+                explanation: explanation,
+                category: category,
+                subject: subject,
+                topic: topic,
+                subtopic: subtopic,
+                source: source,
+                tags: tags
+            };
+
+            questions.push(qObj);
+            renderList();
+            renderJson();
+            clearForm();
+        });
+
+        clearFormBtn.addEventListener("click", () => {
+            clearForm();
+        });
+
+        clearAllBtn.addEventListener("click", () => {
+            if (!confirm("確定要清空目前所有已加入的題目嗎？這個操作無法復原。")) return;
+            questions = [];
+            renderList();
+            renderJson();
+        });
+
+        copyJsonBtn.addEventListener("click", async () => {
+            const text = jsonOutputEl.value;
+            if (!text.trim()) {
+                alert("目前沒有任何 JSON 可以複製。");
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(text);
+                alert("JSON 已複製到剪貼簿，可以貼到你的題庫檔。");
+            } catch (err) {
+                console.error(err);
+                alert("無法使用剪貼簿功能，請手動選取並複製。");
+            }
+        });
+
+        // 初始化畫面
+        renderList();
+        renderJson();
+    </script>
+</body>
+
+</html>

@@ -2,98 +2,115 @@
 <html lang="zh-Hant">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>建築法 刷題測試</title>
-
+    <meta charset="UTF-8" />
+    <title>建築師考試 - 測試版刷題_2</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            background: #f2f2f2;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 16px;
+        }
+
+        h2 {
+            margin-top: 0;
         }
 
         .card {
-            background: white;
-            padding: 16px;
-            border-radius: 10px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-            margin-bottom: 20px;
-        }
-
-        .question {
-            font-size: 18px;
-            font-weight: bold;
-        }
-
-        .question-meta {
-            font-size: 14px;
-            color: #777;
-            margin-bottom: 4px;
-        }
-
-        .explanation {
-            margin-top: 12px;
-            padding-top: 8px;
-            border-top: 1px solid #eee;
-            font-size: 14px;
-            color: #555;
-        }
-
-        .option {
-            margin: 10px 0;
-            padding: 10px;
+            background: #fff;
             border-radius: 8px;
-            background: #e9e9e9;
-            cursor: pointer;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
         }
 
-        .option.correct {
-            background: #c8f7c5;
+        label {
+            font-size: 14px;
+            margin-right: 6px;
         }
 
-        .option.wrong {
-            background: #f8c5c5;
+        select,
+        input[type="number"] {
+            margin: 4px 0 8px;
+            padding: 4px 6px;
+            font-size: 14px;
         }
 
         button {
-            margin-top: 10px;
-            padding: 12px 22px;
-            font-size: 16px;
-            border: none;
-            border-radius: 8px;
+            padding: 6px 12px;
+            margin-top: 8px;
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: #f0f0f0;
             cursor: pointer;
         }
 
-        #nextBtn {
-            background: #4CAF50;
-            color: white;
-        }
-
-        #restartBtn {
-            background: #2196F3;
-            color: white;
-        }
-
-        #shuffleBtn {
-            background: #FF9800;
-            color: white;
-        }
-
         button:disabled {
-            background: #bbb;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .option {
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #ddd;
+            cursor: pointer;
+        }
+
+        .option.selected {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+
+        .option.correct {
+            background: #e8ffe8;
+            border-color: #4caf50;
+        }
+
+        .option.wrong {
+            background: #ffe8e8;
+            border-color: #f44336;
+        }
+
+        .option.disabled {
+            pointer-events: none;
+            opacity: 0.6;
         }
 
         #status {
-            margin-bottom: 10px;
+            margin: 12px 0;
+        }
+
+        #nextBtn {
+            margin-top: 12px;
+        }
+
+        #restartBtn {
+            margin-top: 12px;
+        }
+
+        pre {
+            white-space: pre-wrap;
+        }
+
+        .meta {
             font-size: 14px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .filter-summary {
+            font-size: 13px;
             color: #555;
+            margin-top: 4px;
         }
     </style>
 </head>
 
 <body>
-    <h2>建築法 - 測試版刷題</h2>
+    <h2>建築師考試 - 測試版刷題_2</h2>
 
     <div class="card" style="margin-bottom:20px;">
         <h3>開始前設定</h3>
@@ -102,39 +119,71 @@
         <label>選擇年份：</label>
         <select id="yearSelect">
             <option value="all">全部年份</option>
+            <!-- 之後由資料自動塞入 109 / 110 / 111 / 112 / 113 ... -->
         </select>
-        <br><br>
+        <br>
 
         <!-- 科目（subject） -->
-        <label>選擇科目（subject）：</label>
+        <label>選擇科目：</label>
         <select id="subjectSelect">
             <option value="all">全部科目</option>
         </select>
-        <br><br>
+        <br>
 
         <!-- 大類別（topic） -->
-        <label>選擇大類別（topic）：</label>
+        <label>選擇大類別(topic)：</label>
         <select id="topicSelect">
             <option value="all">全部大類別</option>
-        </select>
-        <br><br>
+            <option value="結構體">結構體</option>
+            <option value="內外裝修">內外裝修</option>
+            <option value="營建管理">營建管理</option>
 
-        <label>選擇題目數量：</label>
-        <select id="questionCount">
-            <option value="5">5 題</option>
-            <option value="10">10 題</option>
-            <option value="20">20 題</option>
-            <option value="all">全部題目</option>
-        </select>
-        <br><br>
+            <option value="建築法系">建築法系</option>
+            <option value="技術規則">技術規則</option>
+            <option value="營業法系">營業法系</option>
+            <option value="土地法系">土地法系</option>
 
-        <!-- 刷題模式 -->
-        <label>刷題模式：</label>
-        <select id="modeSelect">
-            <option value="bank">使用題庫刷題</option>
-            <option value="wrong-only">只刷錯題</option>
-            <option value="generate">生成試題（預留）</option>
+            <option value="環境">環境</option>
+            <option value="綠建築">綠建築</option>
+            <option value="設備">設備</option>
+            <option value="特殊">特殊</option>
         </select>
+        <br>
+
+        <!-- tags 勾選區 -->
+        <div style="margin-top:8px;">
+            <strong>選擇標籤(tags)：</strong>
+            <div id="tagContainer" style="margin-top:4px;font-size:13px;">
+                <!-- JavaScript 依 topic 動態塞 tag checkbox -->
+            </div>
+        </div>
+
+        <!-- 題目數量 -->
+        <div style="margin-top:8px;">
+            <label>本次題目數量：</label>
+            <select id="questionCount" style="width:80px;">
+                <option value="5">5 題</option>
+                <option value="10" selected>10 題</option>
+                <option value="20">20 題</option>
+                <option value="40">40 題</option>
+                <option value="80">80 題</option>
+                <option value="all">全部</option>
+            </select>
+            <span style="font-size:12px;color:#666;">(若超過符合題數，則以實際題數為主)</span>
+        </div>
+
+
+        <div id="filterCountInfo" class="filter-summary">目前尚未載入題庫…</div>
+
+        <!-- 刷題模式選擇 -->
+        <div style="margin-top:8px;">
+            <label>刷題模式：</label>
+            <select id="modeSelect">
+                <option value="bank">題庫刷題</option>
+                <option value="wrong-only">只刷錯題</option>
+                <option value="generate">生成試題（預留）</option>
+            </select>
+        </div>
         <br><br>
 
         <button id="startBtn" style="background:#4CAF50;color:white;padding:10px 20px;border-radius:8px;">
@@ -147,19 +196,39 @@
     <div id="quiz-container"></div>
 
     <button id="nextBtn" disabled>下一題 →</button>
-    <button id="restartBtn">⟳ 重頭開始</button>
-    <button id="shuffleBtn">🔀 亂序題目</button>
+    <button id="confirmBtn" disabled>確定</button>
+    <button id="restartBtn">重新開始</button>
+    <button id="shuffleBtn" style="margin-left:8px;display:none;">重新洗牌</button>
+    <button id="showExplanationBtn" style="margin-left:8px;display:none;">顯示解釋</button>
 
+    <div id="explanation" class="card" style="display:none;margin-top:16px;">
+        <h3>解釋</h3>
+        <div id="explanationContent"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+        <button id="showTagReportBtn">顯示所有 tag 與對應題目</button>
+        <pre id="tagReport" style="white-space: pre-wrap; font-size: 13px; margin-top:8px; display:none;"></pre>
+        <!-- ⭐ 新增：顯示每個 topic → tag 清單 -->
+        <button id="showTopicTagBtn" style="margin-top:8px;">顯示所有 topic 與對應 tags</button>
+        <pre id="topicTagReport" style="white-space: pre-wrap; font-size: 13px; margin-top:8px; display:none;"></pre>
+    </div>
+        
     <script>
+        ////////////////////////////////////////////////////////// 主架構 ///////////////////////////////////////////////////////////////////////////////////
         // 題庫資料
         let fullQuestionBank = [];   // 所有題目
         let questions = [];          // 本次要刷的題目
         let current = 0;
-
+  
         // 計分 + 錯題
         let score = 0;
         let wrongQuestions = [];
         let hasAnswered = false;
+
+        let selectedAnswer = null;
+        let currentQuestionObj = null;
+        let currentExplanationText = "";
 
         // DOM
         const quizContainer = document.getElementById("quiz-container");
@@ -171,6 +240,26 @@
         const subjectSelect = document.getElementById("subjectSelect");
         const topicSelect = document.getElementById("topicSelect");
         const modeSelect = document.getElementById("modeSelect");
+        const tagContainer = document.getElementById("tagContainer");
+        const filterCountInfo = document.getElementById("filterCountInfo");
+        const confirmBtn = document.getElementById("confirmBtn");
+        const explanationDiv = document.getElementById("explanation");
+        const explanationContent = document.getElementById("explanationContent");
+        const showExplanationBtn = document.getElementById("showExplanationBtn");
+
+        function resetExplanation() {
+            if (explanationDiv) {
+                explanationDiv.style.display = "none";
+            }
+            if (explanationContent) {
+                explanationContent.textContent = "";
+            }
+            if (showExplanationBtn) {
+                showExplanationBtn.style.display = "none";
+                showExplanationBtn.textContent = "顯示解釋";
+            }
+            currentExplanationText = "";
+        }
 
         // ✅ 題庫檔案清單（之後有新的年份 / 科目在這裡加）
         const questionFiles = [
@@ -181,51 +270,221 @@
             "questions/113_構造.json",
         ];
 
-        // 讀取多個 JSON 題庫並合併
+        // ✅ 每個 topic 對應的固定 tags（顯示在「選擇標籤(tags)」裡）
+        const FIXED_TAGS_BY_TOPIC = {
+            // 建築構造與施工
+            "結構體": ["基礎工程", "混凝土構造", "鋼構造與 SRC", "其他結構（磚、木、擋土)"],
+            "內外裝修": ["建築外殼工程", "屋頂、防水、隔熱、門窗", "內部裝修", "綠建築與綠建材"],
+            "營建管理": [],   // 目前沒有細分 tag，就留空或之後再補
+
+            // 營建法規與實務
+            "建築法系": ["建築法", "建築師法", "室內裝修管理辦法", "公共安全", "公寓大廈"],
+            "技術規則": ["無障礙", "一般設計通則", "技規(1~16)", "地下建築物", "綠建築"],
+            "營業法系": ["採購法", "營造業法"],
+            "土地法系": ["國土計畫", "區域計畫", "都市計畫", "非都市土地／變使辦法"],
+
+            // 建築環境控制
+            "環境": ["光環境", "熱環境", "空氣環境", "聲音環境"],
+            "綠建築": ["綠建築", "基地保水", "日常節指標"],
+            "設備": ["給排水/衛生設備", "空調設備", "電梯、電器、無障礙", "消防"],
+            "特殊": ["綠建材", "智慧建築"]
+        };
+
+        // 載入所有 json 題庫
         async function loadQuestionsFromJson() {
-            try {
-                let allQuestions = [];
+            let loaded = [];
 
-                for (const file of questionFiles) {
+            for (const file of questionFiles) {
+                try {
                     const res = await fetch(file);
-                    if (!res.ok) {
-                        console.warn("載入失敗：", file, res.status);
-                        continue;
-                    }
-
+                    if (!res.ok) continue;
                     const data = await res.json();
 
                     if (Array.isArray(data.questions)) {
-                        allQuestions = allQuestions.concat(data.questions);
+                        loaded = loaded.concat(data.questions);
                     } else if (Array.isArray(data)) {
-                        allQuestions = allQuestions.concat(data);
-                    } else {
-                        console.warn("未知的 JSON 結構：", file, data);
+                        loaded = loaded.concat(data);
                     }
+                } catch (e) {
+                    console.error("載入題庫失敗：", file, e);
+                }
+            }
+
+            // 統一處理 year / subject / topic / tags
+            fullQuestionBank = loaded.map((q, idx) => {
+                const newQ = { ...q };
+
+                // 若沒有 id，就給一個
+                if (newQ.id == null) {
+                    newQ.id = idx + 1;
                 }
 
-                fullQuestionBank = allQuestions;
+                // topic 若不是陣列，轉成陣列；若沒有，給空陣列
+                if (Array.isArray(newQ.topic)) {
+                    // 保留
+                } else if (newQ.topic) {
+                    newQ.topic = [newQ.topic];
+                } else {
+                    newQ.topic = [];
+                }
 
-                if (!fullQuestionBank || fullQuestionBank.length === 0) {
-                    statusDiv.textContent = "題庫是空的，請確認 questions 資料夾中的 JSON 檔案。";
+                // tags 若不是陣列，轉成陣列；若沒有，給空陣列
+                if (Array.isArray(newQ.tags)) {
+                    // 保留
+                } else if (newQ.tags) {
+                    newQ.tags = [newQ.tags];
+                } else {
+                    newQ.tags = [];
+                }
+
+                return newQ;
+            });
+
+            statusDiv.textContent = `題庫載入完成，共 ${fullQuestionBank.length} 題`;
+
+            // 建立年份選單 & 初始化 subject 選單
+            buildYearOptions();
+            showFilteredCount();
+        }
+
+        // 顯示 tag 報表（可收合）
+        function showTagReport() {
+            const pre = document.getElementById("tagReport");
+            const btn = document.getElementById("showTagReportBtn");
+            if (!pre) return;
+
+            // 若目前已顯示，則改為隱藏
+            if (pre.style.display === "block") {
+                pre.style.display = "none";
+                pre.textContent = "";
+                if (btn) btn.textContent = "顯示所有 tag 與對應題目";
+                return;
+            }
+
+            if (!fullQuestionBank || fullQuestionBank.length === 0) {
+                alert("題庫尚未載入完成。");
+                return;
+            }
+
+            const tagMap = {};              // { tag: [ { year, subject, qno, id, topics[] } ] }
+            const noTagQuestions = [];      // 無 tag 的題目
+
+            fullQuestionBank.forEach(q => {
+                const tags = Array.isArray(q.tags)
+                    ? q.tags
+                    : (q.tags ? [q.tags] : []);
+
+                const topics = Array.isArray(q.topic)
+                    ? q.topic
+                    : (q.topic ? [q.topic] : []);
+
+                const info = {
+                    year: q.year,
+                    subject: q.subject,
+                    qno: q.qno,
+                    id: q.id,
+                    topics: topics
+                };
+
+                if (tags.length === 0) {
+                    // ⭐ 無任何 tag 的題目
+                    noTagQuestions.push(info);
                     return;
                 }
 
-                buildYearOptions();
-                statusDiv.textContent = `題庫載入成功，共 ${fullQuestionBank.length} 題。`;
-            } catch (err) {
-                console.error(err);
-                statusDiv.textContent = "載入題庫失敗。";
+                tags.forEach(tag => {
+                    if (!tagMap[tag]) tagMap[tag] = [];
+                    tagMap[tag].push(info);
+                });
+            });
+
+            const lines = [];
+            const allTags = Object.keys(tagMap).sort();
+
+            // 1️⃣ 有 tag 的題目：依 tag 分類，題目行顯示「年 / 科目 / 題號 + topic」
+            if (allTags.length === 0) {
+                lines.push("目前題庫尚未有任何 tags。");
+            } else {
+                allTags.forEach(tag => {
+                    lines.push(`【${tag}】`);
+                    tagMap[tag].forEach(item => {
+                        const parts = [];
+                        if (item.year != null) parts.push(String(item.year));
+                        if (item.subject) parts.push(item.subject);
+                        if (item.qno != null) parts.push(`Q${item.qno}`);
+                        else if (item.id != null) parts.push(`id:${item.id}`);
+
+                        const topicText = item.topics && item.topics.length > 0
+                            ? ` (topic: ${item.topics.join(", ")})`
+                            : " (topic: 無)";
+
+                        lines.push("  - " + parts.join(" ") + topicText);
+                    });
+                    lines.push(""); // 空行分隔
+                });
             }
+
+            // 2️⃣ 另外列出：完全沒有 tag 的題目 + 其 topic
+            lines.push("==== 無 tag 的題目 ====");
+            if (noTagQuestions.length === 0) {
+                lines.push("（目前所有題目都有至少一個 tag）");
+            } else {
+                noTagQuestions.forEach(item => {
+                    const parts = [];
+                    if (item.year != null) parts.push(String(item.year));
+                    if (item.subject) parts.push(item.subject);
+                    if (item.qno != null) parts.push(`Q${item.qno}`);
+                    else if (item.id != null) parts.push(`id:${item.id}`);
+
+                    const topicText = item.topics && item.topics.length > 0
+                        ? ` (topic: ${item.topics.join(", ")})`
+                        : " (topic: 無)";
+
+                    lines.push("  - " + parts.join(" ") + topicText);
+                });
+            }
+
+            pre.textContent = lines.join("\n");
+            pre.style.display = "block";
+            if (btn) btn.textContent = "隱藏 tag 報表";
+        }
+
+        // 查看topic（可收合）
+        function showTopicTagReport() {
+            const pre = document.getElementById("topicTagReport");
+            const btn = document.getElementById("showTopicTagBtn");
+            if (!pre) return;
+
+            // 若目前已顯示，則改為隱藏
+            if (pre.style.display === "block") {
+                pre.style.display = "none";
+                pre.textContent = "";
+                if (btn) btn.textContent = "顯示所有 topic 與對應 tags";
+                return;
+            }
+
+            const lines = [];
+            const topics = Object.keys(FIXED_TAGS_BY_TOPIC);
+
+            topics.forEach(topic => {
+                const tags = FIXED_TAGS_BY_TOPIC[topic];
+                lines.push(`【${topic}】`);
+                if (tags.length === 0) {
+                    lines.push("  - （無 tags）");
+                } else {
+                    tags.forEach(t => lines.push("  - " + t));
+                }
+                lines.push(""); // 空行
+            });
+
+            pre.textContent = lines.join("\n");
+            pre.style.display = "block";
+            if (btn) btn.textContent = "隱藏 topic/tag 報表";
         }
 
         // 建立年份選單
         function buildYearOptions() {
-            yearSelect.innerHTML = "";
-            const optAll = document.createElement("option");
-            optAll.value = "all";
-            optAll.textContent = "全部年份";
-            yearSelect.appendChild(optAll);
+            if (!fullQuestionBank || fullQuestionBank.length === 0) return;
 
             const yearSet = new Set();
             fullQuestionBank.forEach(q => {
@@ -241,7 +500,10 @@
                 yearSelect.appendChild(opt);
             });
 
-            yearSelect.addEventListener("change", updateSubjectOptions);
+            yearSelect.addEventListener("change", () => {
+                updateSubjectOptions();
+                showFilteredCount();
+            });
             updateSubjectOptions();
         }
 
@@ -257,28 +519,38 @@
 
             const subjectSet = new Set();
             fullQuestionBank.forEach(q => {
-                const matchYear = (selectedYear === "all") || (String(q.year) === selectedYear);
-                if (matchYear && q.subject) {
-                    subjectSet.add(q.subject);
-                }
+                if (selectedYear !== "all" && String(q.year) !== selectedYear) return;
+                if (q.subject) subjectSet.add(q.subject);
             });
 
-            subjectSet.forEach(sub => {
+            Array.from(subjectSet).sort().forEach(sub => {
                 const opt = document.createElement("option");
                 opt.value = sub;
                 opt.textContent = sub;
                 subjectSelect.appendChild(opt);
             });
 
-            subjectSelect.addEventListener("change", updateTopicOptions);
+            // 科目改變 → 先重建 topic，再由 topic 去更新 tags / 題數
+            subjectSelect.addEventListener("change", () => {
+                updateTopicOptions();
+            });
+
+            // 大類別改變 → 更新 tags + 題數
+            topicSelect.addEventListener("change", () => {
+                updateTagOptions();
+                showFilteredCount();
+            });
+
+            // 一開始就依目前 subject 建一次 topic + tags
             updateTopicOptions();
         }
 
-        // 根據年份 + 科目更新大類別(topic)選單
+        // （從 index 移植）根據「年份 + 科目」更新大類別(topic)選單
         function updateTopicOptions() {
             const selectedYear = yearSelect.value;
             const selectedSubject = subjectSelect.value;
 
+            // 先清空，再放回「全部大類別」
             topicSelect.innerHTML = "";
             const optAll = document.createElement("option");
             optAll.value = "all";
@@ -300,34 +572,80 @@
                 }
             });
 
-            topicSet.forEach(tp => {
+            Array.from(topicSet).sort().forEach(tp => {
                 const opt = document.createElement("option");
                 opt.value = tp;
                 opt.textContent = tp;
                 topicSelect.appendChild(opt);
             });
+
+            // 每次 topic 列表重建完，順便刷新 tags + 題數
+            updateTagOptions();
+            showFilteredCount();
         }
 
-        function resetState() {
-            current = 0;
-            score = 0;
-            wrongQuestions = [];
-            hasAnswered = false;
-            nextBtn.disabled = true;
-            nextBtn.style.display = "inline-block";
-            statusDiv.textContent = `已載入題庫，共 ${questions.length} 題。第 1 題｜目前得分：0`;
-        }
+        // (第二代) 根據目前條件（年份 / 科目 / 大類別）更新標籤(tags)勾選清單
+        function updateTagOptions() {
+            if (!tagContainer) return;
 
-        // 篩選題目：依年份 + 科目 + topic + 題數
-        function prepareQuestions() {
+            tagContainer.innerHTML = "";
+
             const selectedYear = yearSelect.value;
             const selectedSubject = subjectSelect.value;
             const selectedTopic = topicSelect.value;
-            const questionCount = document.getElementById("questionCount").value;
 
-            questions = fullQuestionBank.filter(q => {
+            // 🔹 特例：topic =「技術規則」時，使用固定的 tag 列表
+            const fixedTags = FIXED_TAGS_BY_TOPIC[selectedTopic];
+            if (fixedTags) {
+                // ❶ 若這個 topic 有定義，但陣列是空的 → 不顯示任何 tag
+                if (fixedTags.length === 0) {
+                    const msg = document.createElement("div");
+                    msg.style.fontSize = "12px";
+                    msg.style.color = "#666";
+                    msg.textContent = "此大類別目前未細分標籤（將不限標籤篩選）。";
+                    tagContainer.appendChild(msg);
+
+                    showFilteredCount();
+                    return; // 不往下掃題庫
+                }
+
+                // ❷ 一般情況：用固定 tags 建立 checkbox
+                fixedTags.forEach(tag => {
+                    const label = document.createElement("label");
+                    label.style.marginRight = "8px";
+                    label.style.display = "inline-flex";
+                    label.style.alignItems = "center";
+
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.value = tag;
+                    checkbox.className = "tag-checkbox";
+                    checkbox.style.marginRight = "4px";
+                    checkbox.addEventListener("change", showFilteredCount);
+
+                    label.appendChild(checkbox);
+                    label.appendChild(document.createTextNode(tag));
+                    tagContainer.appendChild(label);
+                });
+
+                const hint = document.createElement("div");
+                hint.style.fontSize = "12px";
+                hint.style.color = "#666";
+                hint.style.marginTop = "4px";
+                hint.textContent = "若不勾選任何標籤，則預設為全部標籤。";
+                tagContainer.appendChild(hint);
+
+                showFilteredCount();
+                return;
+            }
+
+            // 🔹 沒有固定 tags 的情況：從題庫中掃描符合條件的所有題目，整理出實際的 tags
+            const tagSet = new Set();
+
+            fullQuestionBank.forEach(q => {
                 const matchYear = (selectedYear === "all") || (String(q.year) === selectedYear);
                 const matchSubject = (selectedSubject === "all") || (q.subject === selectedSubject);
+
                 let matchTopic = true;
                 if (selectedTopic !== "all") {
                     if (Array.isArray(q.topic)) {
@@ -336,34 +654,193 @@
                         matchTopic = (q.topic === selectedTopic);
                     }
                 }
-                return matchYear && matchSubject && matchTopic;
+
+                if (!matchYear || !matchSubject || !matchTopic) return;
+
+                // 這裡不會拆字，"技術規則(1,2,4,8,13,14,16)" 會被視為一個完整 tag 字串
+                if (Array.isArray(q.tags)) {
+                    // 🔧 特例：有些題目的 tags 被拆成 ["技術規則(1","2","4","8","13","14","16)"]
+                    const joined = q.tags.join('');
+                    if (joined.includes('技術規則(1,2,4,8,13,14,16)')) {
+                        tagSet.add('技術規則(1,2,4,8,13,14,16)');
+                    } else {
+                        q.tags.forEach(t => {
+                            if (t) tagSet.add(t);
+                        });
+                    }
+                } else if (q.tags) {
+                    tagSet.add(q.tags);
+                }
             });
 
-            if (questions.length === 0) {
-                alert("沒有符合這個條件的題目！");
+            const tags = Array.from(tagSet).sort();
+
+            if (tags.length === 0) {
+                const msg = document.createElement("div");
+                msg.style.fontSize = "12px";
+                msg.style.color = "#666";
+                msg.textContent = "目前篩選條件下，沒有任何 tag。";
+                tagContainer.appendChild(msg);
+                showFilteredCount();
+                return;
+            }
+
+            tags.forEach(tag => {
+                const label = document.createElement("label");
+                label.style.marginRight = "8px";
+                label.style.display = "inline-flex";
+                label.style.alignItems = "center";
+
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.value = tag;
+                checkbox.className = "tag-checkbox";
+                checkbox.style.marginRight = "4px";
+                checkbox.addEventListener("change", showFilteredCount);
+
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(tag));
+                tagContainer.appendChild(label);
+            });
+
+            const hint = document.createElement("div");
+            hint.style.fontSize = "12px";
+            hint.style.color = "#666";
+            hint.style.marginTop = "4px";
+            hint.textContent = "若不勾選任何標籤，則預設為全部標籤。";
+            tagContainer.appendChild(hint);
+
+            showFilteredCount();
+        }
+
+        // 顯示「符合目前條件的所有題目數」不受題目數量選項影響
+        function showFilteredCount() {
+            if (!fullQuestionBank || fullQuestionBank.length === 0) return;
+
+            const selectedYear = yearSelect.value;
+            const selectedSubject = subjectSelect.value;
+            const selectedTopic = topicSelect.value;
+
+            // 取得目前勾選的 tags
+            const selectedTags = [];
+            const checkboxes = document.querySelectorAll(".tag-checkbox");
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedTags.push(cb.value);
+                }
+            });
+
+            let count = 0;
+
+            fullQuestionBank.forEach(q => {
+                const matchYear = (selectedYear === "all") || (String(q.year) === selectedYear);
+                const matchSubject = (selectedSubject === "all") || (q.subject === selectedSubject);
+
+                let matchTopic = true;
+                if (selectedTopic !== "all") {
+                    if (Array.isArray(q.topic)) {
+                        matchTopic = q.topic.includes(selectedTopic);
+                    } else {
+                        matchTopic = (q.topic === selectedTopic);
+                    }
+                }
+
+                if (!matchYear || !matchSubject || !matchTopic) return;
+
+                // 標籤篩選：若未勾任何標籤則不過濾；有勾則需至少對應一個
+                let matchTag = true;
+                if (selectedTags.length > 0) {
+                    const tagsArray = Array.isArray(q.tags)
+                        ? q.tags
+                        : (q.tags ? [q.tags] : []);
+                    matchTag = selectedTags.some(tag => tagsArray.includes(tag));
+                }
+
+                if (!matchTag) return;
+
+                count++;
+            });
+
+            filterCountInfo.textContent =
+                `目前符合條件的題目數：${count} 題（不受題目數量上限影響）`;
+        }
+
+        // 依目前設定，準備要刷的題目陣列 questions
+        function prepareQuestions() {
+            if (!fullQuestionBank || fullQuestionBank.length === 0) {
+                alert("題庫尚未載入完成。");
                 return false;
             }
 
-            // 亂序
-            for (let i = questions.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [questions[i], questions[j]] = [questions[j], questions[i]];
+            const selectedYear = yearSelect.value;
+            const selectedSubject = subjectSelect.value;
+            const selectedTopic = topicSelect.value;
+
+            const selectedTags = [];
+            const checkboxes = document.querySelectorAll(".tag-checkbox");
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedTags.push(cb.value);
+                }
+            });
+
+            let filtered = fullQuestionBank.filter(q => {
+                const matchYear = (selectedYear === "all") || (String(q.year) === selectedYear);
+                const matchSubject = (selectedSubject === "all") || (q.subject === selectedSubject);
+
+                let matchTopic = true;
+                if (selectedTopic !== "all") {
+                    if (Array.isArray(q.topic)) {
+                        matchTopic = q.topic.includes(selectedTopic);
+                    } else {
+                        matchTopic = (q.topic === selectedTopic);
+                    }
+                }
+
+                let matchTag = true;
+                if (selectedTags.length > 0) {
+                    const tagsArray = Array.isArray(q.tags)
+                        ? q.tags
+                        : (q.tags ? [q.tags] : []);
+                    matchTag = selectedTags.some(tag => tagsArray.includes(tag));
+                }
+
+                return matchYear && matchSubject && matchTopic && matchTag;
+            });
+
+            if (filtered.length === 0) {
+                alert("目前條件下沒有題目，請調整篩選條件。");
+                return false;
             }
 
-            if (questionCount !== "all") {
-                questions = questions.slice(0, Number(questionCount));
-            }
+            const countInput = document.getElementById("questionCount");
+            let n = Number(countInput.value) || 0;
+            if (n <= 0) n = filtered.length;
+            if (n > filtered.length) n = filtered.length;
 
+            shuffleArray(filtered);
+            questions = filtered.slice(0, n);
+            current = 0;
+            score = 0;
+            wrongQuestions = [];
+            hasAnswered = false;
+
+            statusDiv.textContent =
+                `本次將從符合條件的 ${filtered.length} 題中，抽出 ${questions.length} 題來作答。`;
             return true;
         }
 
-        // 顯示題目
+        // 顯示題目（改版：選項點擊只選取，按「確定」才送出）
         function loadQuestion() {
             nextBtn.disabled = true;
+            if (confirmBtn) confirmBtn.disabled = true;
             hasAnswered = false;
+            selectedAnswer = null;
             quizContainer.innerHTML = "";
+            resetExplanation();
 
             const q = questions[current];
+            currentQuestionObj = q;
 
             // 題目前綴：例如「113建築構造與施工第32題」
             let metaParts = [];
@@ -372,53 +849,66 @@
             if (q.qno !== undefined && q.qno !== null) metaParts.push(`第${q.qno}題`);
             const metaText = metaParts.join("") || `第 ${current + 1} 題`;
 
-            const explanationText = q.explanation && q.explanation.trim().length > 0
+            const explanationText = q.explanation && q.explanation.trim()
                 ? q.explanation
-                : "（尚無解釋，之後可在 JSON 裡補上 explanation。）";
+                : "尚未提供解釋。";
+            currentExplanationText = explanationText;
 
-            let html = `
-            <div class="card">
-                <div class="question-meta">${metaText}</div>
-                <div class="question">${q.question}</div>
-                <div class="option" data-opt="A">A. ${q.options.A}</div>
-                <div class="option" data-opt="B">B. ${q.options.B}</div>
-                <div class="option" data-opt="C">C. ${q.options.C}</div>
-                <div class="option" data-opt="D">D. ${q.options.D}</div>
-                <div class="explanation" id="explanation" style="display:none;">
-                    <strong>解釋：</strong><span>${explanationText}</span>
-                </div>
-            </div>
-            `;
+            const card = document.createElement("div");
+            card.className = "card";
 
-            quizContainer.innerHTML = html;
+            const metaDiv = document.createElement("div");
+            metaDiv.className = "meta";
+            metaDiv.textContent = metaText;
+            card.appendChild(metaDiv);
 
-            document.querySelectorAll(".option").forEach(opt => {
-                opt.addEventListener("click", () => handleAnswer(opt, q));
+            const title = document.createElement("h3");
+            title.textContent = q.question;
+            card.appendChild(title);
+
+            const optionsDiv = document.createElement("div");
+            const optionKeys = Object.keys(q.options || {});
+            optionKeys.forEach(key => {
+                const optDiv = document.createElement("div");
+                optDiv.className = "option";
+                optDiv.dataset.value = key;
+                optDiv.textContent = `${key}. ${q.options[key]}`;
+
+                optDiv.addEventListener("click", () => {
+                    if (hasAnswered) return;
+                    selectedAnswer = key;
+                    optionsDiv.querySelectorAll(".option").forEach(o => o.classList.remove("selected"));
+                    optDiv.classList.add("selected");
+                    if (confirmBtn) confirmBtn.disabled = false;
+                });
+
+                optionsDiv.appendChild(optDiv);
             });
 
-            statusDiv.textContent = `第 ${current + 1} / ${questions.length} 題｜目前得分：${score}`;
+            card.appendChild(optionsDiv);
+            quizContainer.appendChild(card);
         }
 
-        // 判斷答案 + 記錄錯題
-        function handleAnswer(optionDiv, questionObj) {
+        function handleAnswer(questionObj, userAns, explanationText) {
             if (hasAnswered) return;
             hasAnswered = true;
 
             const correctAnswer = questionObj.answer;
-            const userAns = optionDiv.dataset.opt;
+            const optionsDom = document.querySelectorAll(".option");
+            optionsDom.forEach(opt => {
+                const val = opt.dataset.value;
+                if (val === correctAnswer) {
+                    opt.classList.add("correct");
+                }
+                if (val === userAns && userAns !== correctAnswer) {
+                    opt.classList.add("wrong");
+                }
+                opt.classList.add("disabled");
+            });
 
             if (userAns === correctAnswer) {
-                optionDiv.classList.add("correct");
                 score++;
             } else {
-                optionDiv.classList.add("wrong");
-
-                const correctDiv = document.querySelector(`[data-opt="${correctAnswer}"]`);
-                if (correctDiv) {
-                    correctDiv.classList.add("correct");
-                }
-
-                // 記錄錯題（保留完整題目物件 + 使用者答案）
                 wrongQuestions.push({
                     ...questionObj,
                     correctAnswer: correctAnswer,
@@ -426,11 +916,16 @@
                 });
             }
 
-            // 顯示解釋
-            const expDiv = document.getElementById("explanation");
-            if (expDiv) expDiv.style.display = "block";
+            // 準備解釋（不自動顯示，改由按鈕控制）
+            currentExplanationText = explanationText || "";
+
+            if (showExplanationBtn) {
+                showExplanationBtn.style.display = "inline-block";
+                showExplanationBtn.textContent = "顯示解釋";
+            }
 
             document.querySelectorAll(".option").forEach(opt => opt.style.pointerEvents = "none");
+            if (confirmBtn) confirmBtn.disabled = true;
             nextBtn.disabled = false;
 
             statusDiv.textContent = `第 ${current + 1} / ${questions.length} 題｜目前得分：${score}`;
@@ -448,85 +943,65 @@
 
         // 顯示結果 + 錯題回顧
         function showResult() {
+            resetExplanation();
+            if (confirmBtn) confirmBtn.disabled = true;
+
             let html = `
-                <h2>🎉 已完成全部題目！</h2>
-                <p>得分：${score} / ${questions.length}</p>
+                <div class="card">
+                    <h3>作答結束</h3>
+                    <p>共 ${questions.length} 題，答對 ${score} 題，正確率 ${(score / questions.length * 100).toFixed(1)}%</p>
+                </div>
             `;
 
-            if (wrongQuestions.length === 0) {
-                html += `<p>全部答對！太強了 💪</p>`;
-            } else {
-                html += `<h3>錯題回顧（共 ${wrongQuestions.length} 題）</h3>`;
-                wrongQuestions.forEach((w, idx) => {
-                    const label = (w.year ? w.year : "") + (w.subject ? w.subject : "") +
-                        (w.qno ? `第${w.qno}題` : "");
-                    html += `
+            if (wrongQuestions.length > 0) {
+                html += `
                     <div class="card">
-                        <div class="question">${label || (idx + 1)}. ${w.question}</div>
-                        <p>你的答案：${w.userAnswer}. ${w.options[w.userAnswer]}</p>
-                        <p>正確答案：${w.correctAnswer}. ${w.options[w.correctAnswer]}</p>
-                    </div>
+                        <h3>錯題回顧（${wrongQuestions.length} 題）</h3>
+                `;
+                wrongQuestions.forEach((w, idx) => {
+                    let metaParts = [];
+                    if (w.year !== undefined && w.year !== null) metaParts.push(String(w.year));
+                    if (w.subject) metaParts.push(w.subject);
+                    if (w.qno !== undefined && w.qno !== null) metaParts.push(`第${w.qno}題`);
+                    const metaText = metaParts.join("") || `第 ${idx + 1} 題`;
+
+                    html += `
+                        <div style="margin-bottom:8px;">
+                            <div style="font-size:13px;color:#666;">${metaText}</div>
+                            <div>${w.question}</div>
+                            <div style="font-size:13px;">
+                                正確答案：${w.correctAnswer}，
+                                你的答案：${w.userAnswer || "（未作答）"}
+                            </div>
+                        </div>
                     `;
                 });
+                html += `</div>`;
             }
 
             quizContainer.innerHTML = html;
             nextBtn.disabled = true;
             nextBtn.style.display = "none";
-            statusDiv.textContent = `測驗完成｜最終得分：${score} / ${questions.length}`;
+            restartBtn.style.display = "inline-block";
+            shuffleBtn.style.display = "inline-block";
+
+            statusDiv.textContent = `作答結束｜總得分：${score} / ${questions.length}`;
         }
 
-        // ⟳ 重頭開始（保留目前排序）
+        // 重新開始（重新依設定抓題）
         restartBtn.addEventListener("click", () => {
-            resetState();
-            loadQuestion();
-        });
-
-        // 🔀 亂序題目
-        function shuffleArray(array) {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
-            }
-        }
-
-        shuffleBtn.addEventListener("click", () => {
-            shuffleArray(questions);
-            resetState();
-            loadQuestion();
-            statusDiv.textContent = `題目已亂序排列｜第 1 題｜目前得分：${score}`;
-        });
-
-        // 開始刷題按鈕
-        document.getElementById("startBtn").addEventListener("click", () => {
             const mode = modeSelect.value;
-            const questionCount = document.getElementById("questionCount").value;
 
-            // 生成式題目模式（預留）
-            if (mode === "generate") {
-                alert("『生成式題目』功能尚未實作（預留）。");
-                return;
-            }
-
-            // 只刷錯題模式
+            // 只刷錯題模式：題庫換成 wrongQuestions
             if (mode === "wrong-only") {
                 if (wrongQuestions.length === 0) {
-                    alert("目前沒有錯題可以刷喔！");
+                    alert("目前沒有錯題可以刷！");
                     return;
                 }
-
                 questions = [...wrongQuestions];
-
-                // 亂序
-                shuffleArray(questions);
-
-                // 取題數
-                if (questionCount !== "all") {
-                    questions = questions.slice(0, Number(questionCount));
-                }
-
                 current = 0;
                 score = 0;
+                wrongQuestions = [];
                 hasAnswered = false;
 
                 statusDiv.textContent = `開始只刷錯題（共 ${questions.length} 題）`;
@@ -547,8 +1022,87 @@
             loadQuestion();
         });
 
+        // 初始狀態重置
+        function resetState() {
+            current = 0;
+            score = 0;
+            wrongQuestions = [];
+            hasAnswered = false;
+            nextBtn.disabled = true;
+            nextBtn.style.display = "inline-block";
+        }
+
+        // 🔀 亂序題目
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        shuffleBtn.addEventListener("click", () => {
+            shuffleArray(questions);
+            resetState();
+            loadQuestion();
+        });
+
+        if (confirmBtn) {
+            confirmBtn.addEventListener("click", () => {
+                if (!currentQuestionObj || hasAnswered || selectedAnswer === null) return;
+                handleAnswer(currentQuestionObj, selectedAnswer, currentExplanationText);
+            });
+        }
+
+        if (showExplanationBtn) {
+            showExplanationBtn.addEventListener("click", () => {
+                if (!currentExplanationText) return;
+                if (!explanationDiv || !explanationContent) return;
+
+                const isVisible = explanationDiv.style.display === "block";
+                if (isVisible) {
+                    explanationDiv.style.display = "none";
+                    explanationContent.textContent = "";
+                    showExplanationBtn.textContent = "顯示解釋";
+                } else {
+                    explanationDiv.style.display = "block";
+                    explanationContent.textContent = currentExplanationText;
+                    showExplanationBtn.textContent = "隱藏解釋";
+                }
+            });
+        }
+
+        // 「開始刷題」按鈕：依目前條件篩選 + 顯示題目
+        document.getElementById("startBtn").addEventListener("click", () => {
+            const mode = modeSelect.value;
+
+            if (mode === "wrong-only") {
+                if (wrongQuestions.length === 0) {
+                    alert("目前沒有錯題可以刷！");
+                    return;
+                }
+                questions = [...wrongQuestions];
+                current = 0;
+                score = 0;
+                wrongQuestions = [];
+                hasAnswered = false;
+
+                statusDiv.textContent = `開始只刷錯題（共 ${questions.length} 題）`;
+                loadQuestion();
+                return;
+            }
+
+            const ok = prepareQuestions();
+            if (!ok) return;
+
+            statusDiv.textContent = `開始刷題（本次抽出 ${questions.length} 題）`;
+            loadQuestion();
+        });
+
         // 初始化載入題庫
         loadQuestionsFromJson();
+        // 查看json
+        document.getElementById("showTagReportBtn").addEventListener("click", showTagReport);
+        document.getElementById("showTopicTagBtn").addEventListener("click", showTopicTagReport);
     </script>
 
 </body>
