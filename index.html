@@ -162,11 +162,49 @@
             white-space: pre-wrap;
             overflow-wrap: anywhere;
         }
+
+        .notes-cloud button {
+            min-height: 44px;
+        }
+
+        .notes-cloud input {
+            box-sizing: border-box;
+            max-width: 100%;
+            min-height: 44px;
+            font: inherit;
+        }
+
+        #cloudLoginForm {
+            align-items: end;
+        }
+
+        #cloudLoginForm[hidden] {
+            display: none;
+        }
     </style>
 </head>
 
 <body>
     <h2>建築師考試 - 測試版刷題_2</h2>
+
+    <section class="card notes-cloud" aria-label="登入與雲端筆記">
+        <h3>登入與雲端筆記</h3>
+        <p id="cloudAccount">未登入：使用原本機筆記。</p>
+        <form id="cloudLoginForm" class="note-actions">
+            <label>Email <input id="cloudEmail" type="email" autocomplete="username" required></label>
+            <label>密碼 <input id="cloudPassword" type="password" autocomplete="current-password" required></label>
+            <button id="cloudLoginBtn" type="submit" disabled>登入</button>
+        </form>
+        <div class="note-actions">
+            <button id="cloudLogoutBtn" type="button" hidden>登出</button>
+            <button id="syncNotesBtn" type="button" hidden>立即同步</button>
+        </div>
+        <div id="legacyMigration" hidden>
+            <p id="legacyNotesCount"></p>
+            <button id="migrateLegacyNotesBtn" type="button">將原本機筆記匯入目前帳號</button>
+        </div>
+        <p id="cloudStatus" class="note-status" role="status" aria-live="polite">正在載入登入功能；本機筆記仍可使用。</p>
+    </section>
 
     <section class="card notes-transfer" aria-label="筆記備份">
         <h3>筆記備份</h3>
@@ -304,6 +342,8 @@
         <pre id="topicTagReport" style="white-space: pre-wrap; font-size: 13px; margin-top:8px; display:none;"></pre>
     </div>
         
+    <script src="./js/supabase-config.js"></script>
+    <script src="./js/notes-cloud.js"></script>
     <script>
         ////////////////////////////////////////////////////////// 主架構 ///////////////////////////////////////////////////////////////////////////////////
         // 題庫資料
@@ -347,6 +387,7 @@
         const noteContent = document.getElementById("noteContent");
         const noteStatus = document.getElementById("noteStatus");
         let noteDraft = null;
+        let cloudNotes = null;
 
         // 固定識別規則：JSON.stringify(["v1", 來源路徑, "qno", 原始題號])。
         // 只在同一來源缺號／撞號時，改用題幹、排序後的選項、答案及相同內容出現次數。
@@ -415,10 +456,12 @@
                         !isValidNoteDate(note.createdAt) || !isValidNoteDate(note.updatedAt)) {
                         throw new Error("筆記內容、識別或 ISO 日期格式錯誤");
                     }
-                    if (Object.hasOwn(note, "importConflict") &&
-                        (!isObject(note.importConflict) || typeof note.importConflict.sourceNoteId !== "string" ||
-                            !note.importConflict.sourceNoteId.trim())) {
-                        throw new Error("匯入衝突副本的來源格式錯誤");
+                    for (const field of ["importConflict", "syncConflict"]) {
+                        if (Object.hasOwn(note, field) &&
+                            (!isObject(note[field]) || typeof note[field].sourceNoteId !== "string" ||
+                                !note[field].sourceNoteId.trim())) {
+                            throw new Error("衝突副本的來源格式錯誤");
+                        }
                     }
                     ids.add(note.noteId);
                 }
@@ -434,13 +477,18 @@
             return JSON.stringify(validateNotesStore(data), null, space);
         }
 
-        function readNotesStore() {
+        function readGuestNotesStore() {
             const raw = localStorage.getItem(NOTES_STORAGE_KEY);
             return raw === null ? emptyNotesStore() : parseNotesStore(raw);
         }
 
-        function writeNotesStore(data) {
-            localStorage.setItem(NOTES_STORAGE_KEY, serializeNotesStore(data));
+        function readNotesStore() {
+            return cloudNotes ? cloudNotes.read() : readGuestNotesStore();
+        }
+
+        function writeNotesStore(data, context = {}) {
+            if (cloudNotes) cloudNotes.write(data, context);
+            else localStorage.setItem(NOTES_STORAGE_KEY, serializeNotesStore(data));
         }
 
         function getQuestionNotes(data, questionKey) {
@@ -468,11 +516,13 @@
                 const reservedIds = new Set([...entries, ...importedEntries].map(note => note.noteId));
                 for (const note of importedEntries) {
                     const existing = entries.find(item => item.noteId === note.noteId);
-                    const sourceNoteId = note.importConflict ? note.importConflict.sourceNoteId : note.noteId;
-                    const duplicateCopy = entries.some(item => item.importConflict &&
-                        item.importConflict.sourceNoteId === sourceNoteId && item.content === note.content);
+                    const sourceNoteId = note.importConflict ? note.importConflict.sourceNoteId :
+                        note.syncConflict ? note.syncConflict.sourceNoteId : note.noteId;
+                    const duplicateCopy = entries.some(item =>
+                        [item.importConflict, item.syncConflict].some(source => source && source.sourceNoteId === sourceNoteId) &&
+                        item.content === note.content);
                     if ((existing && existing.content === note.content) ||
-                        ((existing || note.importConflict) && duplicateCopy)) {
+                        ((existing || note.importConflict || note.syncConflict) && duplicateCopy)) {
                         counts.skipped++;
                     } else if (!existing) {
                         entries.push({ ...note });
@@ -642,7 +692,8 @@
             noteDraft = {
                 questionKey: currentQuestionObj.questionKey,
                 noteId: note ? note.noteId : null,
-                originalContent: note ? note.content : ""
+                originalContent: note ? note.content : "",
+                baseVersion: cloudNotes && note ? cloudNotes.versionFor(note) : undefined
             };
             noteContent.value = noteDraft.originalContent;
             noteEditor.hidden = false;
@@ -671,7 +722,8 @@
                 entry.className = "note-entry";
                 entry.dataset.noteId = note.noteId;
                 const summary = document.createElement("summary");
-                summary.textContent = (note.importConflict ? "筆記（匯入衝突副本）｜" : "筆記｜") + formatNoteTime(note.createdAt);
+                summary.textContent = (note.syncConflict ? "筆記（同步衝突副本）｜" :
+                    note.importConflict ? "筆記（匯入衝突副本）｜" : "筆記｜") + formatNoteTime(note.createdAt);
                 const content = document.createElement("div");
                 content.className = "note-content";
                 content.textContent = note.content;
@@ -720,13 +772,14 @@
             }
             store.notesByQuestion[questionKey] = entries;
             try {
-                writeNotesStore(store);
+                writeNotesStore(store, { questionKey, noteId: noteDraft.noteId,
+                    expectedVersion: noteDraft.baseVersion, baseContent: noteDraft.originalContent });
             } catch (error) {
                 noteStatus.textContent = "保存失敗：瀏覽器儲存空間不足或未允許儲存。輸入內容仍保留，請先複製備份後再試。";
                 return;
             }
             renderQuestionNotes(currentQuestionObj);
-            noteStatus.textContent = "已保存";
+            noteStatus.textContent = cloudNotes ? cloudNotes.savedMessage() : "已保存";
         });
 
         addNoteBtn.addEventListener("click", () => openNoteEditor());
@@ -1605,6 +1658,87 @@
 
             statusDiv.textContent = `開始刷題（本次抽出 ${questions.length} 題）`;
             loadQuestion();
+        });
+
+        // Account changes hide the previous account's data. Drafts remain only in this
+        // page's per-scope memory; ordinary synchronization never resets an editor.
+        const scopeDrafts = new Map();
+        function refreshCloudNotes() {
+            if (hasAnswered && currentQuestionObj) renderQuestionNotes(currentQuestionObj, true);
+        }
+        function changeNotesScope(previous, next) {
+            if (noteDraft) scopeDrafts.set(previous, { draft: { ...noteDraft }, value: noteContent.value });
+            resetNotesPanel();
+            importReadVersion++;
+            pendingNotesImport = null;
+            noteImportPreview.hidden = true;
+            noteTransferStatus.textContent = "";
+            if (hasAnswered && currentQuestionObj) {
+                renderQuestionNotes(currentQuestionObj);
+                const saved = scopeDrafts.get(next);
+                if (saved && saved.draft.questionKey === currentQuestionObj.questionKey) {
+                    noteDraft = saved.draft;
+                    noteContent.value = saved.value;
+                    noteEditor.hidden = false;
+                    scopeDrafts.delete(next);
+                    noteStatus.textContent = "已恢復此帳號在目前頁面的未保存草稿。";
+                }
+            }
+        }
+        function updateCloudStatus(state) {
+            document.getElementById("cloudAccount").textContent = state.user
+                ? "目前帳號：" + state.user.email : "未登入：使用原本機筆記。";
+            document.getElementById("cloudLoginBtn").disabled = !state.ready;
+            document.getElementById("cloudLoginForm").hidden = !!state.user;
+            document.getElementById("cloudLogoutBtn").hidden = !state.user;
+            document.getElementById("syncNotesBtn").hidden = !state.user;
+            document.getElementById("legacyMigration").hidden = !state.user;
+            document.getElementById("legacyNotesCount").textContent = state.legacyCount === null
+                ? "原本機筆記無法讀取，原始資料已保留。" : "原本機筆記：" + state.legacyCount + " 則，尚未自動匯入此帳號。";
+            document.getElementById("migrateLegacyNotesBtn").disabled = !state.user || !state.legacyCount;
+            document.getElementById("cloudStatus").textContent = state.message +
+                (state.user && state.pending !== null ? "（待同步 " + state.pending + " 則）" : "");
+            if (state.user && state.message === "已同步" && noteStatus.textContent === "已存本機，尚未同步") {
+                noteStatus.textContent = "已同步";
+            }
+        }
+        if (window.FastQuizCloud && window.FAST_QUIZ_SUPABASE) {
+            cloudNotes = window.FastQuizCloud.create({
+                config: window.FAST_QUIZ_SUPABASE,
+                empty: emptyNotesStore, validate: validateNotesStore, merge: mergeNotesStores, getQuestionNotes,
+                readLegacy: readGuestNotesStore,
+                writeLegacy: data => localStorage.setItem(NOTES_STORAGE_KEY, serializeNotesStore(data)),
+                onData: refreshCloudNotes, onScopeChange: changeNotesScope, onStatus: updateCloudStatus
+            });
+            cloudNotes.init();
+        } else {
+            document.getElementById("cloudStatus").textContent = "登入程式無法載入；仍可使用刷題及本機筆記。";
+        }
+        document.getElementById("cloudLoginForm").addEventListener("submit", async event => {
+            event.preventDefault();
+            const email = document.getElementById("cloudEmail").value.trim();
+            const passwordField = document.getElementById("cloudPassword");
+            const password = passwordField.value;
+            passwordField.value = "";
+            const button = document.getElementById("cloudLoginBtn");
+            button.disabled = true;
+            try { await cloudNotes.signIn(email, password); }
+            catch (error) { document.getElementById("cloudStatus").textContent = error.message; }
+            finally { button.disabled = false; }
+        });
+        document.getElementById("cloudLogoutBtn").addEventListener("click", async () => {
+            try { await cloudNotes.signOut(); }
+            catch (_) { document.getElementById("cloudStatus").textContent = "登出連線失敗，請重試；筆記仍保留在本機。"; }
+        });
+        document.getElementById("syncNotesBtn").addEventListener("click", () => cloudNotes.sync());
+        document.getElementById("migrateLegacyNotesBtn").addEventListener("click", () => {
+            try {
+                const counts = cloudNotes.migrate();
+                noteTransferStatus.textContent = "原本機筆記已合併至目前帳號：" + formatImportCounts(counts) +
+                    "。原本機資料仍保留，請查看同步狀態。";
+            } catch (_) {
+                noteTransferStatus.textContent = "無法匯入原本機筆記，請檢查資料與儲存空間。原始資料未更動。";
+            }
         });
 
         // 初始化載入題庫
