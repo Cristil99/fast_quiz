@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>建築師考試 - 測試版刷題_2</title>
     <style>
         body {
@@ -106,6 +107,60 @@
             color: #555;
             margin-top: 4px;
         }
+
+        .notes-panel {
+            margin-top: 16px;
+        }
+
+        .notes-panel textarea {
+            display: block;
+            box-sizing: border-box;
+            width: 100%;
+            min-height: 140px;
+            margin-top: 8px;
+            padding: 10px;
+            font: inherit;
+            resize: vertical;
+        }
+
+        .notes-panel button,
+        .note-entry summary {
+            min-height: 44px;
+            box-sizing: border-box;
+        }
+
+        .note-entry {
+            border-top: 1px solid #ddd;
+            padding: 8px 0;
+        }
+
+        .note-entry summary {
+            padding: 10px 0;
+            cursor: pointer;
+            overflow-wrap: anywhere;
+        }
+
+        .note-content {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .note-meta,
+        .notes-hint {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .note-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .note-status {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
     </style>
 </head>
 
@@ -206,6 +261,22 @@
         <div id="explanationContent"></div>
     </div>
 
+    <section id="notesPanel" class="card notes-panel" hidden aria-label="個人筆記">
+        <h3>個人筆記</h3>
+        <p class="notes-hint">筆記保存在此瀏覽器，請固定使用相同網址開啟測驗。</p>
+        <div id="notesList"></div>
+        <button id="addNoteBtn" type="button">筆記</button>
+        <form id="noteEditor" hidden>
+            <label for="noteContent">筆記內容（純文字）</label>
+            <textarea id="noteContent" rows="6"></textarea>
+            <div class="note-actions">
+                <button id="saveNoteBtn" type="submit">保存</button>
+                <button id="cancelNoteBtn" type="button">取消</button>
+            </div>
+        </form>
+        <p id="noteStatus" class="note-status" role="status" aria-live="polite"></p>
+    </section>
+
     <div class="card" style="margin-top:16px;">
         <button id="showTagReportBtn">顯示所有 tag 與對應題目</button>
         <pre id="tagReport" style="white-space: pre-wrap; font-size: 13px; margin-top:8px; display:none;"></pre>
@@ -246,6 +317,218 @@
         const explanationDiv = document.getElementById("explanation");
         const explanationContent = document.getElementById("explanationContent");
         const showExplanationBtn = document.getElementById("showExplanationBtn");
+
+        // 個人筆記 v1：與當輪題目、分數及錯題完全分開。
+        const NOTES_STORAGE_KEY = "fast_quiz.notes.v1";
+        const NOTES_SCHEMA_VERSION = 1;
+        const notesPanel = document.getElementById("notesPanel");
+        const notesList = document.getElementById("notesList");
+        const addNoteBtn = document.getElementById("addNoteBtn");
+        const noteEditor = document.getElementById("noteEditor");
+        const noteContent = document.getElementById("noteContent");
+        const noteStatus = document.getElementById("noteStatus");
+        let noteDraft = null;
+
+        // 固定識別規則：JSON.stringify(["v1", 來源路徑, "qno", 原始題號])。
+        // 只在同一來源缺號／撞號時，改用題幹、排序後的選項、答案及相同內容出現次數。
+        // 備援不依賴篩選、抽題、topic 或 tags；題幹改動或重排完全相同的副本會影響備援。
+        function attachQuestionIdentity(file, sourceQuestions) {
+            const normalizeQno = q => {
+                const value = q.qno;
+                if (typeof value !== "number" && typeof value !== "string") return null;
+                if (String(value).trim() === "") return null;
+                const number = Number(value);
+                return Number.isSafeInteger(number) && number > 0 ? String(number) : null;
+            };
+            const qnoCounts = new Map();
+            sourceQuestions.forEach(q => {
+                const qno = normalizeQno(q);
+                if (qno !== null) qnoCounts.set(qno, (qnoCounts.get(qno) || 0) + 1);
+            });
+            const copies = new Map();
+            return sourceQuestions.map(q => {
+                const qno = normalizeQno(q);
+                let identity;
+                if (qno !== null && qnoCounts.get(qno) === 1) {
+                    identity = ["v1", file, "qno", qno];
+                } else {
+                    const options = Object.keys(q.options || {}).sort().map(key => [key, q.options[key]]);
+                    const content = JSON.stringify([qno, q.question || "", options, q.answer || ""]);
+                    const occurrence = (copies.get(content) || 0) + 1;
+                    copies.set(content, occurrence);
+                    identity = ["v1", file, "content", content, occurrence];
+                    console.warn("題目缺號或題號重複，使用內容備援識別：", file, q.qno);
+                }
+                return { ...q, sourceFile: file, questionKey: JSON.stringify(identity) };
+            });
+        }
+
+        function readNotesStore() {
+            const raw = localStorage.getItem(NOTES_STORAGE_KEY);
+            if (raw === null) return { schemaVersion: NOTES_SCHEMA_VERSION, notesByQuestion: {} };
+            const data = JSON.parse(raw);
+            if (!data || data.schemaVersion !== NOTES_SCHEMA_VERSION ||
+                !data.notesByQuestion || typeof data.notesByQuestion !== "object" ||
+                Array.isArray(data.notesByQuestion)) {
+                throw new Error("不支援的筆記資料格式或版本");
+            }
+            for (const [questionKey, entries] of Object.entries(data.notesByQuestion)) {
+                if (!Array.isArray(entries)) throw new Error("筆記清單格式錯誤");
+                const ids = new Set();
+                for (const note of entries) {
+                    if (!note || typeof note.noteId !== "string" || !note.noteId ||
+                        ids.has(note.noteId) || note.questionKey !== questionKey ||
+                        typeof note.content !== "string" || !note.content.trim() ||
+                        typeof note.createdAt !== "string" || !Number.isFinite(Date.parse(note.createdAt)) ||
+                        typeof note.updatedAt !== "string" || !Number.isFinite(Date.parse(note.updatedAt))) {
+                        throw new Error("筆記內容格式錯誤");
+                    }
+                    ids.add(note.noteId);
+                }
+            }
+            return data;
+        }
+
+        function showNotesReadError() {
+            noteStatus.textContent = "無法讀取筆記，可能是資料格式、版本或瀏覽器儲存權限異常。為保留原始資料，暫停寫入；仍可繼續刷題。";
+        }
+
+        function formatNoteTime(isoTime) {
+            const date = new Date(isoTime);
+            const pad = value => String(value).padStart(2, "0");
+            return date.getFullYear() + "/" + pad(date.getMonth() + 1) + "/" + pad(date.getDate()) +
+                " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
+        }
+
+        function closeNoteEditor() {
+            noteDraft = null;
+            noteEditor.hidden = true;
+            noteContent.value = "";
+        }
+
+        function resetNotesPanel() {
+            closeNoteEditor();
+            notesPanel.hidden = true;
+            notesList.replaceChildren();
+            noteStatus.textContent = "";
+        }
+
+        function hasUnsavedNoteChanges() {
+            return noteDraft !== null && noteContent.value !== noteDraft.originalContent;
+        }
+
+        function confirmNoteNavigation() {
+            return !hasUnsavedNoteChanges() ||
+                window.confirm("筆記尚未保存，確定離開目前題目並捨棄修改嗎？");
+        }
+
+        function openNoteEditor(note = null) {
+            if (!confirmNoteNavigation()) return;
+            noteDraft = {
+                questionKey: currentQuestionObj.questionKey,
+                noteId: note ? note.noteId : null,
+                originalContent: note ? note.content : ""
+            };
+            noteContent.value = noteDraft.originalContent;
+            noteEditor.hidden = false;
+            noteStatus.textContent = "";
+            noteContent.focus();
+        }
+
+        function renderQuestionNotes(questionObj) {
+            resetNotesPanel();
+            notesPanel.hidden = false;
+            addNoteBtn.disabled = true;
+            let entries;
+            try {
+                const store = readNotesStore();
+                entries = store.notesByQuestion[questionObj.questionKey] || [];
+            } catch (error) {
+                showNotesReadError();
+                return;
+            }
+
+            addNoteBtn.disabled = false;
+            addNoteBtn.textContent = entries.length ? "新增筆記" : "筆記";
+            [...entries].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).forEach(note => {
+                const entry = document.createElement("details");
+                entry.className = "note-entry";
+                entry.dataset.noteId = note.noteId;
+                const summary = document.createElement("summary");
+                summary.textContent = "筆記｜" + formatNoteTime(note.createdAt);
+                const content = document.createElement("div");
+                content.className = "note-content";
+                content.textContent = note.content;
+                const updated = document.createElement("p");
+                updated.className = "note-meta";
+                updated.textContent = "更新時間：" + formatNoteTime(note.updatedAt);
+                const edit = document.createElement("button");
+                edit.type = "button";
+                edit.textContent = "編輯";
+                edit.addEventListener("click", () => openNoteEditor(note));
+                entry.append(summary, content, updated, edit);
+                notesList.appendChild(entry);
+            });
+        }
+
+        noteEditor.addEventListener("submit", event => {
+            event.preventDefault();
+            if (!noteDraft || !hasAnswered || noteDraft.questionKey !== currentQuestionObj.questionKey) return;
+            const content = noteContent.value;
+            if (!content.trim()) {
+                noteStatus.textContent = "請輸入筆記內容，全空白無法保存。";
+                noteContent.focus();
+                return;
+            }
+            let store;
+            try {
+                // 每次保存重讀最新資料，只修改指定題目的指定筆記。
+                store = readNotesStore();
+            } catch (error) {
+                showNotesReadError();
+                return;
+            }
+            const questionKey = noteDraft.questionKey;
+            const entries = store.notesByQuestion[questionKey] || [];
+            const now = new Date().toISOString();
+            if (noteDraft.noteId !== null) {
+                const index = entries.findIndex(note => note.noteId === noteDraft.noteId);
+                if (index === -1) {
+                    noteStatus.textContent = "找不到原筆記，未保存修改。請先複製目前內容備份，再重新開啟筆記。";
+                    return;
+                }
+                entries[index] = { ...entries[index], content, updatedAt: now };
+            } else {
+                let noteId;
+                do {
+                    noteId = typeof crypto.randomUUID === "function"
+                        ? crypto.randomUUID()
+                        : "note-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+                } while (entries.some(note => note.noteId === noteId));
+                entries.unshift({ noteId, questionKey, content, createdAt: now, updatedAt: now });
+            }
+            store.notesByQuestion[questionKey] = entries;
+            try {
+                localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(store));
+            } catch (error) {
+                noteStatus.textContent = "保存失敗：瀏覽器儲存空間不足或未允許儲存。輸入內容仍保留，請先複製備份後再試。";
+                return;
+            }
+            renderQuestionNotes(currentQuestionObj);
+            noteStatus.textContent = "已保存";
+        });
+
+        addNoteBtn.addEventListener("click", () => openNoteEditor());
+        document.getElementById("cancelNoteBtn").addEventListener("click", () => {
+            closeNoteEditor();
+            noteStatus.textContent = "";
+        });
+        noteContent.addEventListener("input", () => { noteStatus.textContent = ""; });
+        window.addEventListener("beforeunload", event => {
+            if (!hasUnsavedNoteChanges()) return;
+            event.preventDefault();
+            event.returnValue = "";
+        });
 
         function resetExplanation() {
             if (explanationDiv) {
@@ -308,9 +591,9 @@
                     const data = await res.json();
 
                     if (Array.isArray(data.questions)) {
-                        loaded = loaded.concat(data.questions);
+                        loaded = loaded.concat(attachQuestionIdentity(file, data.questions));
                     } else if (Array.isArray(data)) {
-                        loaded = loaded.concat(data);
+                        loaded = loaded.concat(attachQuestionIdentity(file, data));
                     }
                 } catch (e) {
                     console.error("載入題庫失敗：", file, e);
@@ -839,6 +1122,7 @@
 
         // 顯示題目（改版：選項點擊只選取，按「確定」才送出）
         function loadQuestion() {
+            resetNotesPanel();
             nextBtn.style.display = "inline-block";
             nextBtn.disabled = true;
             if (confirmBtn) confirmBtn.disabled = true;
@@ -935,12 +1219,14 @@
             document.querySelectorAll(".option").forEach(opt => opt.style.pointerEvents = "none");
             if (confirmBtn) confirmBtn.disabled = true;
             nextBtn.disabled = false;
+            renderQuestionNotes(questionObj);
 
             statusDiv.textContent = `第 ${current + 1} / ${questions.length} 題｜目前得分：${score}`;
         }
 
         // 下一題
         nextBtn.addEventListener("click", () => {
+            if (!confirmNoteNavigation()) return;
             current++;
             if (current < questions.length) {
                 loadQuestion();
@@ -951,6 +1237,7 @@
 
         // 顯示結果 + 錯題回顧
         function showResult() {
+            resetNotesPanel();
             resetExplanation();
             if (confirmBtn) confirmBtn.disabled = true;
 
@@ -998,6 +1285,7 @@
 
         // 重新開始（重新依設定抓題）
         restartBtn.addEventListener("click", () => {
+            if (!confirmNoteNavigation()) return;
             const mode = modeSelect.value;
 
             // 只刷錯題模式：題庫換成 wrongQuestions
@@ -1049,6 +1337,7 @@
         }
 
         shuffleBtn.addEventListener("click", () => {
+            if (!confirmNoteNavigation()) return;
             shuffleArray(questions);
             resetState();
             loadQuestion();
@@ -1081,6 +1370,7 @@
 
         // 「開始刷題」按鈕：依目前條件篩選 + 顯示題目
         document.getElementById("startBtn").addEventListener("click", () => {
+            if (!confirmNoteNavigation()) return;
             const mode = modeSelect.value;
 
             if (mode === "wrong-only") {
