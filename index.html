@@ -839,6 +839,7 @@
 
         // 顯示題目（改版：選項點擊只選取，按「確定」才送出）
         function loadQuestion() {
+            nextBtn.style.display = "inline-block";
             nextBtn.disabled = true;
             if (confirmBtn) confirmBtn.disabled = true;
             hasAnswered = false;
