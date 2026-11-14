@@ -124,6 +124,7 @@
         }
 
         .notes-panel button,
+        .notes-transfer button,
         .note-entry summary {
             min-height: 44px;
             box-sizing: border-box;
@@ -166,6 +167,24 @@
 
 <body>
     <h2>建築師考試 - 測試版刷題_2</h2>
+
+    <section class="card notes-transfer" aria-label="筆記備份">
+        <h3>筆記備份</h3>
+        <div class="note-actions">
+            <button id="exportNotesBtn" type="button">匯出筆記</button>
+            <button id="importNotesBtn" type="button">匯入筆記</button>
+            <input id="noteImportFile" type="file" accept=".json,application/json" hidden>
+        </div>
+        <p class="notes-hint">只備份已保存的筆記。匯入採合併，本機版本保留，不同內容另存衝突副本。</p>
+        <div id="noteImportPreview" hidden>
+            <p id="noteImportSummary" role="status"></p>
+            <div class="note-actions">
+                <button id="confirmNotesImportBtn" type="button">確認合併匯入</button>
+                <button id="cancelNotesImportBtn" type="button">取消匯入</button>
+            </div>
+        </div>
+        <p id="noteTransferStatus" class="note-status" role="status" aria-live="polite"></p>
+    </section>
 
     <div class="card" style="margin-bottom:20px;">
         <h3>開始前設定</h3>
@@ -363,31 +382,227 @@
             });
         }
 
-        function readNotesStore() {
-            const raw = localStorage.getItem(NOTES_STORAGE_KEY);
-            if (raw === null) return { schemaVersion: NOTES_SCHEMA_VERSION, notesByQuestion: {} };
-            const data = JSON.parse(raw);
-            if (!data || data.schemaVersion !== NOTES_SCHEMA_VERSION ||
-                !data.notesByQuestion || typeof data.notesByQuestion !== "object" ||
-                Array.isArray(data.notesByQuestion)) {
+        // 筆記資料介面：讀取、匯出、匯入及保存共用同一套驗證。
+        function emptyNotesStore() {
+            return { schemaVersion: NOTES_SCHEMA_VERSION, notesByQuestion: Object.create(null) };
+        }
+
+        function isValidNoteDate(value) {
+            if (typeof value !== "string") return false;
+            const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$/);
+            if (!match || !Number.isFinite(Date.parse(value))) return false;
+            const [, y, m, d, h, min, sec, zone] = match;
+            const year = Number(y), month = Number(m), day = Number(d);
+            const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+            const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+            return month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1] &&
+                Number(h) <= 23 && Number(min) <= 59 && Number(sec) <= 59 &&
+                (zone === "Z" || (Number(zone.slice(1, 3)) <= 23 && Number(zone.slice(4)) <= 59));
+        }
+
+        function validateNotesStore(data) {
+            const isObject = value => value !== null && typeof value === "object" && !Array.isArray(value);
+            if (!isObject(data) || data.schemaVersion !== NOTES_SCHEMA_VERSION || !isObject(data.notesByQuestion)) {
                 throw new Error("不支援的筆記資料格式或版本");
             }
             for (const [questionKey, entries] of Object.entries(data.notesByQuestion)) {
-                if (!Array.isArray(entries)) throw new Error("筆記清單格式錯誤");
+                if (!questionKey.trim() || !Array.isArray(entries)) throw new Error("筆記清單格式錯誤");
                 const ids = new Set();
                 for (const note of entries) {
-                    if (!note || typeof note.noteId !== "string" || !note.noteId ||
+                    if (!isObject(note) || typeof note.noteId !== "string" || !note.noteId.trim() ||
                         ids.has(note.noteId) || note.questionKey !== questionKey ||
                         typeof note.content !== "string" || !note.content.trim() ||
-                        typeof note.createdAt !== "string" || !Number.isFinite(Date.parse(note.createdAt)) ||
-                        typeof note.updatedAt !== "string" || !Number.isFinite(Date.parse(note.updatedAt))) {
-                        throw new Error("筆記內容格式錯誤");
+                        !isValidNoteDate(note.createdAt) || !isValidNoteDate(note.updatedAt)) {
+                        throw new Error("筆記內容、識別或 ISO 日期格式錯誤");
+                    }
+                    if (Object.hasOwn(note, "importConflict") &&
+                        (!isObject(note.importConflict) || typeof note.importConflict.sourceNoteId !== "string" ||
+                            !note.importConflict.sourceNoteId.trim())) {
+                        throw new Error("匯入衝突副本的來源格式錯誤");
                     }
                     ids.add(note.noteId);
                 }
             }
             return data;
         }
+
+        function parseNotesStore(text) {
+            return validateNotesStore(JSON.parse(text.replace(/^\uFEFF/, "")));
+        }
+
+        function serializeNotesStore(data, space = 0) {
+            return JSON.stringify(validateNotesStore(data), null, space);
+        }
+
+        function readNotesStore() {
+            const raw = localStorage.getItem(NOTES_STORAGE_KEY);
+            return raw === null ? emptyNotesStore() : parseNotesStore(raw);
+        }
+
+        function writeNotesStore(data) {
+            localStorage.setItem(NOTES_STORAGE_KEY, serializeNotesStore(data));
+        }
+
+        function getQuestionNotes(data, questionKey) {
+            return Object.hasOwn(data.notesByQuestion, questionKey) ? data.notesByQuestion[questionKey] : [];
+        }
+
+        function createNoteId(entries, reservedIds = new Set()) {
+            let noteId;
+            do {
+                noteId = typeof crypto.randomUUID === "function"
+                    ? crypto.randomUUID()
+                    : "note-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+            } while (reservedIds.has(noteId) || entries.some(note => note.noteId === noteId));
+            return noteId;
+        }
+
+        // 純合併：不改動輸入資料、不寫入儲存。衝突以來源 ID + 原始內容去重。
+        function mergeNotesStores(local, incoming) {
+            validateNotesStore(local);
+            validateNotesStore(incoming);
+            const merged = { ...local, notesByQuestion: Object.assign(Object.create(null), local.notesByQuestion) };
+            const counts = { added: 0, skipped: 0, conflicts: 0 };
+            for (const [questionKey, importedEntries] of Object.entries(incoming.notesByQuestion)) {
+                const entries = getQuestionNotes(local, questionKey).map(note => ({ ...note }));
+                const reservedIds = new Set([...entries, ...importedEntries].map(note => note.noteId));
+                for (const note of importedEntries) {
+                    const existing = entries.find(item => item.noteId === note.noteId);
+                    const sourceNoteId = note.importConflict ? note.importConflict.sourceNoteId : note.noteId;
+                    const duplicateCopy = entries.some(item => item.importConflict &&
+                        item.importConflict.sourceNoteId === sourceNoteId && item.content === note.content);
+                    if ((existing && existing.content === note.content) ||
+                        ((existing || note.importConflict) && duplicateCopy)) {
+                        counts.skipped++;
+                    } else if (!existing) {
+                        entries.push({ ...note });
+                        counts.added++;
+                    } else {
+                        const noteId = createNoteId(entries, reservedIds);
+                        reservedIds.add(noteId);
+                        entries.push({ ...note, noteId, importConflict: { sourceNoteId } });
+                        counts.conflicts++;
+                    }
+                }
+                merged.notesByQuestion[questionKey] = entries;
+            }
+            return { data: validateNotesStore(merged), counts };
+        }
+
+        const noteTransferStatus = document.getElementById("noteTransferStatus");
+        const noteImportFile = document.getElementById("noteImportFile");
+        const noteImportPreview = document.getElementById("noteImportPreview");
+        const noteImportSummary = document.getElementById("noteImportSummary");
+        let pendingNotesImport = null;
+        let importReadVersion = 0;
+
+        function formatImportCounts(counts) {
+            return "新增 " + counts.added + " 則、略過 " + counts.skipped + " 則、衝突副本 " + counts.conflicts + " 則";
+        }
+
+        function prepareNotesImport(incoming) {
+            const local = readNotesStore();
+            const plan = mergeNotesStores(local, incoming);
+            pendingNotesImport = { incoming, base: serializeNotesStore(local), plan };
+            noteImportSummary.textContent = formatImportCounts(plan.counts) +
+                "。合併保留本機筆記；不同內容另存衝突副本。";
+            noteImportPreview.hidden = false;
+        }
+
+        document.getElementById("exportNotesBtn").addEventListener("click", () => {
+            let data, text;
+            try {
+                data = readNotesStore();
+                text = serializeNotesStore(data, 2);
+            } catch (error) {
+                noteTransferStatus.textContent = "無法匯出：筆記資料無法讀取，或格式、版本、日期異常。原始資料未更動。";
+                return;
+            }
+            const count = Object.values(data.notesByQuestion).reduce((sum, notes) => sum + notes.length, 0);
+            if (count === 0) {
+                noteTransferStatus.textContent = "目前沒有已保存的筆記可匯出。";
+                return;
+            }
+            const now = new Date();
+            const pad = value => String(value).padStart(2, "0");
+            const filename = "fast_quiz_notes_" + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) +
+                "_" + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds()) + ".json";
+            try {
+                const url = URL.createObjectURL(new Blob([text], { type: "application/json;charset=utf-8" }));
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                noteTransferStatus.textContent = "已產生 " + count + " 則筆記的備份：" + filename + "。請確認瀏覽器的下載結果。";
+            } catch (error) {
+                noteTransferStatus.textContent = "無法產生下載檔案，筆記資料未更動。請檢查瀏覽器是否允許下載。";
+            }
+        });
+
+        document.getElementById("importNotesBtn").addEventListener("click", () => {
+            noteImportFile.value = "";
+            noteImportFile.click();
+        });
+
+        noteImportFile.addEventListener("change", async () => {
+            const version = ++importReadVersion;
+            const file = noteImportFile.files[0];
+            pendingNotesImport = null;
+            noteImportPreview.hidden = true;
+            if (!file) return;
+            noteTransferStatus.textContent = "正在讀取及驗證筆記檔案…";
+            try {
+                const incoming = parseNotesStore(await file.text());
+                if (version !== importReadVersion) return;
+                prepareNotesImport(incoming);
+                noteTransferStatus.textContent = "驗證完成，尚未寫入。請確認合併數量後再匯入。";
+            } catch (error) {
+                if (version !== importReadVersion) return;
+                noteTransferStatus.textContent = "無法匯入：檔案或本機筆記的格式、版本、內容、日期或讀取狀態異常。原有筆記未變更。";
+            } finally {
+                if (version === importReadVersion) noteImportFile.value = "";
+            }
+        });
+
+        document.getElementById("cancelNotesImportBtn").addEventListener("click", () => {
+            importReadVersion++;
+            pendingNotesImport = null;
+            noteImportPreview.hidden = true;
+            noteImportFile.value = "";
+            noteTransferStatus.textContent = "已取消匯入，原有筆記未變更。";
+        });
+
+        document.getElementById("confirmNotesImportBtn").addEventListener("click", () => {
+            if (!pendingNotesImport) return;
+            const pending = pendingNotesImport;
+            let local;
+            try {
+                local = readNotesStore();
+                if (serializeNotesStore(local) !== pending.base) {
+                    prepareNotesImport(pending.incoming);
+                    noteTransferStatus.textContent = "本機筆記已變更，已更新合併預覽。請再次確認後匯入。";
+                    return;
+                }
+            } catch (error) {
+                noteTransferStatus.textContent = "無法讀取本機筆記，匯入未寫入任何資料。原有筆記已保留。";
+                return;
+            }
+            try {
+                if (pending.plan.counts.added + pending.plan.counts.conflicts > 0) {
+                    writeNotesStore(pending.plan.data);
+                }
+            } catch (error) {
+                noteTransferStatus.textContent = "匯入保存失敗：儲存空間不足或未允許儲存。原有筆記未變更，可重試或取消。";
+                return;
+            }
+            pendingNotesImport = null;
+            noteImportPreview.hidden = true;
+            if (hasAnswered && currentQuestionObj) renderQuestionNotes(currentQuestionObj, true);
+            noteTransferStatus.textContent = "合併完成：" + formatImportCounts(pending.plan.counts) + "。";
+        });
 
         function showNotesReadError() {
             noteStatus.textContent = "無法讀取筆記，可能是資料格式、版本或瀏覽器儲存權限異常。為保留原始資料，暫停寫入；仍可繼續刷題。";
@@ -435,14 +650,15 @@
             noteContent.focus();
         }
 
-        function renderQuestionNotes(questionObj) {
-            resetNotesPanel();
+        function renderQuestionNotes(questionObj, preserveEditor = false) {
+            if (preserveEditor) notesList.replaceChildren();
+            else resetNotesPanel();
             notesPanel.hidden = false;
             addNoteBtn.disabled = true;
             let entries;
             try {
                 const store = readNotesStore();
-                entries = store.notesByQuestion[questionObj.questionKey] || [];
+                entries = getQuestionNotes(store, questionObj.questionKey);
             } catch (error) {
                 showNotesReadError();
                 return;
@@ -455,7 +671,7 @@
                 entry.className = "note-entry";
                 entry.dataset.noteId = note.noteId;
                 const summary = document.createElement("summary");
-                summary.textContent = "筆記｜" + formatNoteTime(note.createdAt);
+                summary.textContent = (note.importConflict ? "筆記（匯入衝突副本）｜" : "筆記｜") + formatNoteTime(note.createdAt);
                 const content = document.createElement("div");
                 content.className = "note-content";
                 content.textContent = note.content;
@@ -489,7 +705,7 @@
                 return;
             }
             const questionKey = noteDraft.questionKey;
-            const entries = store.notesByQuestion[questionKey] || [];
+            const entries = getQuestionNotes(store, questionKey);
             const now = new Date().toISOString();
             if (noteDraft.noteId !== null) {
                 const index = entries.findIndex(note => note.noteId === noteDraft.noteId);
@@ -499,17 +715,12 @@
                 }
                 entries[index] = { ...entries[index], content, updatedAt: now };
             } else {
-                let noteId;
-                do {
-                    noteId = typeof crypto.randomUUID === "function"
-                        ? crypto.randomUUID()
-                        : "note-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
-                } while (entries.some(note => note.noteId === noteId));
+                const noteId = createNoteId(entries);
                 entries.unshift({ noteId, questionKey, content, createdAt: now, updatedAt: now });
             }
             store.notesByQuestion[questionKey] = entries;
             try {
-                localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(store));
+                writeNotesStore(store);
             } catch (error) {
                 noteStatus.textContent = "保存失敗：瀏覽器儲存空間不足或未允許儲存。輸入內容仍保留，請先複製備份後再試。";
                 return;
